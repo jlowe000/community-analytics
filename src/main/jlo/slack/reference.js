@@ -13,11 +13,13 @@ function dd_reactiondata(ts, reactions) {
   const filename = "reaction_data.csv";
 
   fs.access(filename, fs.constants.F_OK, (err) => {
-    if (err) { try { fs.writeFileSync(filename, 'ts,reaction,users,count\n', 'utf8'); } catch (err) {} }
+    if (err) { try { fs.writeFileSync(filename, 'ts,reaction,user,count\n', 'utf8'); } catch (err) {} }
   });
   // console.dir(reactions, {depth:null});
   reactions.forEach(function(value){
-    fs.appendFile(filename, ts+','+value.name+','+value.users+','+value.count+'\n', 'utf8', (err) => { if (err) { console.log(err); } });
+    value.users.forEach(function(user){
+      fs.appendFile(filename, ts+','+value.name+','+user+','+value.count+'\n', 'utf8', (err) => { if (err) { console.log(err); } });
+    });
   });
 }
 
@@ -68,7 +70,7 @@ function convertts(ts) {
     cts = dateFormat(new Date(Math.floor(parseFloat(ts,10)*1000)),'yyyy-mm-dd"T"HH:MM:ss.000');
   } catch (err) {
   }
-  console.log('convert:'+ts+','+cts);
+  // console.log('convert:'+ts+','+cts);
   return cts;
 }
 
@@ -134,9 +136,17 @@ function dd_messagedata(channel,result) {
   });
 }
 
+function dd_metadata() {
+  const filename = "meta_data.csv";
+
+  fs.access(filename, fs.constants.F_OK, (err) => {
+    if (err) { try { fs.writeFileSync(filename, 'time\n', 'utf8'); } catch (err) {} } 
+  });
+  fs.appendFile(filename, dateFormat(new Date(),'yyyy-mm-dd"T"HH:MM:ss.000')+'"\n', 'utf8', (err) => { if (err) { console.log(err); } });
+}
+
 (async() => {
   try {
-    // const result = await web.chat.postMessage({ text: 'Hello world!', channel: 'C1TLW9J01' });
     loop = false;
     req = { token: user_token };
     do { 
@@ -156,17 +166,7 @@ function dd_messagedata(channel,result) {
       req = { token: user_token, cursor: result.response_metadata.next_cursor };
       loop = result.has_more;
     } while (loop);
-
-    // loop = false;
-    // req = { token: user_token, channel: 'C1TLW9J01' };
-    // do { 
-    //   result = await web.conversations.history(req);
-    //   console.log('Posted');
-    //   console.dir(result, {depth:null});
-    //   console.log(result.response_metadata.next_cursor);
-    //   req = { token: user_token, channel: 'C1TLW9J01', cursor: result.response_metadata.next_cursor };
-    //   loop = result.has_more;
-    // } while(loop);
+    dd_metadata();
   } catch (error) {
     console.log('Error');
     console.log(error.data);
