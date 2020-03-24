@@ -11,6 +11,9 @@
   "dependencies": {
     "@slack/events-api": "^2.3.2",
     "@slack/rtm-api": "^5.0.3",
-    "@slack/web-api": "^5.8.0"
+    "@slack/web-api": "^5.8.0",
+    "csv-writer": "^1.6.0",
+    "dateformat": "^3.0.3",
+    "pg": "^7.18.2"
   }
 }
