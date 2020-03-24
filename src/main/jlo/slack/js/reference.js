@@ -142,7 +142,7 @@ function dd_metadata() {
   fs.access(filename, fs.constants.F_OK, (err) => {
     if (err) { try { fs.writeFileSync(filename, 'time\n', 'utf8'); } catch (err) {} } 
   });
-  fs.appendFile(filename, dateFormat(new Date(),'yyyy-mm-dd"T"HH:MM:ss.000')+'"\n', 'utf8', (err) => { if (err) { console.log(err); } });
+  fs.appendFile(filename, dateFormat(new Date(),'yyyy-mm-dd"T"HH:MM:ss.000')+'\n', 'utf8', (err) => { if (err) { console.log(err); } });
 }
 
 (async() => {
