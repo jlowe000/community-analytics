@@ -4,6 +4,7 @@ import csv
 import slack
 import pandas
 import urllib3
+import ssl
 import certifi
 from math import floor
 from datetime import datetime
@@ -26,28 +27,30 @@ access_token = os.environ['SLACK_ACCESS_TOKEN']
 user_token = os.environ['SLACK_USER_TOKEN']
 # user_token = 'SLACK_USER_TOKEN'  
 
-client = slack.WebClient(token=access_token)
+ssl_context = ssl.create_default_context(cafile=certifi.where())
+client = slack.WebClient(token=access_token,ssl=ssl_context)
 spark = SparkSession.builder.master('local').appName('SlackBot').getOrCreate();
 http = urllib3.PoolManager(cert_reqs='CERT_REQUIRED', ca_certs=certifi.where());
 
 batchtime = datetime.now();
-batch = floor(batchtime.timestamp()*1000)
+# batch = floor(batchtime.timestamp()*1000)
+batch = batchtime.strftime('%Y%m%d%H%M%S')
 
 def dd_writemetadata():
-  os.makedirs('data/'+str(batch)+'/csv');
-  os.makedirs('data/'+str(batch)+'/api');
-  f = open('data/'+str(batch)+'/csv/metadata.csv','a');
+  os.makedirs('data/'+batch+'/csv');
+  os.makedirs('data/'+batch+'/api');
+  f = open('data/'+batch+'/csv/metadata.csv','a');
   f.write('"time"\n"'+batchtime.isoformat(timespec='seconds')+'"\n');
   f.close();
 
 def dd_writejson(filename,result):
   current_time = floor(datetime.now().timestamp()*1000000)
-  f = open('data/'+str(batch)+'/api/'+filename+'_'+str(current_time)+'.json','a');
+  f = open('data/'+batch+'/api/'+filename+'_'+str(current_time)+'.json','a');
   f.write(str(result));
   f.close();
 
 def dd_writefile(filename,pdf):
-  with open('data/'+str(batch)+'/csv/'+filename+'.csv','a') as f:
+  with open('data/'+batch+'/csv/'+filename+'.csv','a') as f:
     pdf.to_csv(f,index=False,quoting=csv.QUOTE_ALL,mode='a',header=f.tell()==0);
 
 def dd_userdata(result):
@@ -141,7 +144,7 @@ def dd_messagedata(id,result):
       print('replies:'+row['ts']+','+str(row['reply_count']))
       if row['reply_count'] !=  None and row['reply_count'] > 0:
         retrieveThreads(id,row['ts']);
-    pdf.drop(columns=['reactions']);
+    pdf = pdf.drop(columns=['reactions']);
     dd_writefile(filename,pdf)
   except Exception as err:
     print('Error')
@@ -207,8 +210,8 @@ def dd_filedata(result):
     dd_writefile(filename,pdf)
     for file in files:
       res = http.request('GET',file['url_private_download'],headers = { 'Authorization': 'Bearer '+user_token });
-      os.makedirs('data/'+str(batch)+'/files/'+file['id']);
-      f = open('data/'+str(batch)+'/files/'+file['id']+'/'+file['name'],'ab');
+      os.makedirs('data/'+batch+'/files/'+file['id']);
+      f = open('data/'+batch+'/files/'+file['id']+'/'+file['name'],'ab');
       f.write(res.data);
       f.close();
       print(file['url_private_download'])
@@ -391,3 +394,4 @@ dd_writemetadata();
 retrieve_userdata();
 retrieve_channeldata();
 retrieve_filedata();
+print('this was executed with batch number '+batch);
