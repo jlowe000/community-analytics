@@ -1,10 +1,8 @@
 import os
 import time
 import csv
-import slack
 import pandas
 import ast
-import urllib3
 import ssl
 import certifi
 import glob
@@ -31,9 +29,7 @@ user_token = os.environ['SLACK_USER_TOKEN']
 # user_token = 'SLACK_USER_TOKEN'  
 
 ssl_context = ssl.create_default_context(cafile=certifi.where())
-client = slack.WebClient(token=access_token,ssl=ssl_context)
 spark = SparkSession.builder.master('local').appName('SlackBot').getOrCreate();
-http = urllib3.PoolManager(cert_reqs='CERT_REQUIRED', ca_certs=certifi.where());
 
 batch = sys.argv[1]
 

@@ -14,13 +14,19 @@
 * Added exception logic for socket TIMEOUT
 **v0.3**
 * Further testing on clean environment (so we can run backups and as part of a cron job)
+**v0.4**
+* Testing worked with cron
+* Split reference.py (to be removed at some stage), creating extract script and transform / load script
+* extract shell zip has been created to zip up all of the content (json / csv data)
+* NOTE: even though it is JSON like, the string output is Python objects using ast to evaluate back into the Python objects
 
 ## TODO
 **Future things to consider**
 * Clean-up the data processing (do we need RDD / Pandas / PySpark (to do what needs to be done)
 * Look into the statistics cubes (max counts)
 * Look into alternate storage into a DB (as well as CSV)
-* Look into separating the pipe (into discrete stages) - Extract (from Slack) / Transform (into Output Forms) / Load (into CSV, DB, other)
+* ~~look into separating the pipe (into discrete stages) - Extract (from Slack) / Transform (into Output Forms) / Load (into CSV, DB, other)~~ though Transform & Load are in the same process.
+* Remove any linkages to slack and http in the transform / load script.
 
 ## Setup (from what I can tell - need to validate on clean environment):
 **Python**
