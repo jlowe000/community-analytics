@@ -43,9 +43,9 @@ def dd_writemetadata():
   f.write('"time"\n"'+batchtime.isoformat(timespec='seconds')+'"\n');
   f.close();
 
-def dd_writejson(filename,result):
+def dd_writejson(filename,key,result):
   current_time = floor(datetime.now().timestamp()*1000000)
-  f = open('data/'+batch+'/api/'+filename+'_'+str(current_time)+'.json','a');
+  f = open('data/'+batch+'/api/'+filename+'-'+key+'-'+str(current_time)+'.json','a');
   f.write(str(result));
   f.close();
 
@@ -80,12 +80,15 @@ def dd_filedata(result):
   try:
     files = result['files']
     for file in files:
-      res = http.request('GET',file['url_private_download'],headers = { 'Authorization': 'Bearer '+user_token });
-      os.makedirs('data/'+batch+'/files/'+file['id']);
-      f = open('data/'+batch+'/files/'+file['id']+'/'+file['name'],'ab');
-      f.write(res.data);
-      f.close();
-      print(file['url_private_download'])
+      if len(file['channels']) > 0:
+        res = http.request('GET',file['url_private_download'],headers = { 'Authorization': 'Bearer '+user_token });
+        os.makedirs('data/'+batch+'/files/'+file['id']);
+        f = open('data/'+batch+'/files/'+file['id']+'/'+file['name'],'ab');
+        f.write(res.data);
+        f.close();
+        print(file['url_private_download'])
+      else:
+        print('ignored file as deemed as private in message');
     print('end');
   except Exception as err:
     print('Error')
@@ -110,7 +113,7 @@ def retrieve_userdata():
           time.sleep(0.1)
       if result == None:
         exit(-1);
-      dd_writejson('user_list',result);
+      dd_writejson('user_list','all',result);
       try:
         cursor = result['response_metadata']['next_cursor'];
       except Exception as err:
@@ -142,7 +145,7 @@ def retrieve_channeldata():
           time.sleep(0.1)
       if result == None:
         exit(-1);
-      dd_writejson('conversation_list',result);
+      dd_writejson('conversation_list','all',result);
       parse_channeldata(result);
       try:
         cursor = result['response_metadata']['next_cursor'];
@@ -175,7 +178,7 @@ def retrieveThreads(id,ts):
           time.sleep(0.1)
       if result == None:
         exit(-1);
-      dd_writejson('conversation_replies',result);
+      dd_writejson('conversation_replies',id+'_'+ts,result);
       try:
         cursor = result['response_metadata']['next_cursor'];
       except Exception as err:
@@ -207,7 +210,7 @@ def retrieveMessages(id):
           time.sleep(0.1)
       if result == None:
         exit(-1);
-      dd_writejson('conversation_history',result);
+      dd_writejson('conversation_history',id,result);
       parse_messagedata(id,result);
       try:
         cursor = result['response_metadata']['next_cursor'];
@@ -240,7 +243,7 @@ def retrieve_filedata():
           time.sleep(0.1)
       if result == None:
         exit(-1);
-      dd_writejson('files_list',result);
+      dd_writejson('files_list','all',result);
       # print(result)
       dd_filedata(result);
       try:
