@@ -26,7 +26,7 @@
 * Look into the statistics cubes (max counts)
 * Look into alternate storage into a DB (as well as CSV)
 * ~~look into separating the pipe (into discrete stages) - Extract (from Slack) / Transform (into Output Forms) / Load (into CSV, DB, other)~~ though Transform & Load are in the same process.
-* Remove any linkages to slack and http in the transform / load script.
+* ~~Remove any linkages to slack and http in the transform / load script.~~
 
 ## Setup (from what I can tell - need to validate on clean environment):
 **Python**
