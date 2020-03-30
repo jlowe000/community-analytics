@@ -21,13 +21,19 @@
 **v0.4**
 * Testing worked with cron
 * Split reference.py (to be removed at some stage), creating extract script and transform / load script
-* extract shell zip has been created to zip up all of the content (json / csv data)
+* Extract shell zip has been created to zip up all of the content (json / csv data)
 * NOTE: even though it is JSON like, the string output is Python objects using ast to evaluate back into the Python objects
+
+**v0.5**
+* Cleaned up pandas / spark / slack imports (reduced the amount of spark execution to timestamp calculations and adding columns.
+* Further testing of the automated execution __SUCCESS__
+* Added zip execution into the output. (all API and CSV data is captured).
 
 ## TODO
 
 **Future things to consider**
-* Clean-up the data processing (do we need RDD / Pandas / PySpark to do what needs to be done)
+* ~~Clean-up the data processing (do we need RDD / Pandas / PySpark to do what needs to be done)~~
+* Determine how to use Pandas to do column insertion (for id and foreign relationships) and timestamp format transformations.
 * Look into the statistics cubes (max counts)
 * Look into alternate storage into a DB (as well as CSV)
 * ~~look into separating the pipe (into discrete stages) - Extract (from Slack) / Transform (into Output Forms) / Load (into CSV, DB, other)~~ though Transform & Load are in the same process.
@@ -49,7 +55,7 @@
 * numpy 
 * pyspark
 
-## Slack OAuth Permissions__
+## Slack OAuth Permissions
 
 **Bot Token Scopes**
 * chat:write
@@ -68,6 +74,7 @@
 * users:read
 
 ## Configuration Requirements (maintain securely)
+
 These configuration requirements are used as part of the scripted environment
 * OAuth Access Token (SLACK_ACCESS_TOKEN)
 * Bot User OAuth Access Token (SLACK_USER_TOKEN)

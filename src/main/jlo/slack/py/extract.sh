@@ -1,6 +1,6 @@
 . ~/.bashrc
 # ./run.sh reference.py
-# ./run.sh extract_slack.py
+./run.sh extract_slack.py
 archive=`ls data -tp | grep /$ | head -1`
 archive=${archive%?}
 echo "batch id is :${archive}"
