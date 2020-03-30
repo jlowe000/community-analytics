@@ -27,7 +27,7 @@
 ## TODO
 
 **Future things to consider**
-* Clean-up the data processing (do we need RDD / Pandas / PySpark (to do what needs to be done)
+* Clean-up the data processing (do we need RDD / Pandas / PySpark to do what needs to be done)
 * Look into the statistics cubes (max counts)
 * Look into alternate storage into a DB (as well as CSV)
 * ~~look into separating the pipe (into discrete stages) - Extract (from Slack) / Transform (into Output Forms) / Load (into CSV, DB, other)~~ though Transform & Load are in the same process.
