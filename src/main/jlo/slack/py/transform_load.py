@@ -31,7 +31,18 @@ user_token = os.environ['SLACK_USER_TOKEN']
 # ssl_context = ssl.create_default_context(cafile=certifi.where())
 spark = SparkSession.builder.master('local').appName('SlackBot').getOrCreate();
 
-batch = sys.argv[1]
+batch = None
+stage = None
+if len(sys.argv) >= 2:
+  batch = sys.argv[1]
+if len(sys.argv) >= 3:
+  stage = int(sys.argv[2])
+
+if batch == None:
+  print('no batch id provided');
+  exit(-1);
+if stage == None:
+  print('run all stages');
 
 def sortfile_key(file):
   return int(file[-21:-5]);
@@ -39,6 +50,13 @@ def sortfile_key(file):
 def dd_writefile(filename,pdf):
   with open('data/'+batch+'/csv/'+filename+'.csv','a') as f:
     pdf.to_csv(f,index=False,quoting=csv.QUOTE_ALL,mode='a',header=f.tell()==0);
+
+def dd_readfile(filename):
+  try:
+    pdf = pandas.read_csv('data/'+batch+'/csv/'+filename+'.csv');
+    return pdf;
+  except Exception as err:
+    print(err);
 
 def dd_userdata(result):
   filename = "user_data";
@@ -299,14 +317,39 @@ def retrieve_filedata():
     print('Error')
     print(err)
 
-print('this was executed with batch number '+batch);
-try:
-  print('transform and load user data');
-  retrieve_userdata();
-  print('transform and load channel / message / thread  data');
-  retrieve_channeldata();
-  print('transform and load file data');
-  retrieve_filedata();
-except Exception as err:
-  print(err)
+def create_conversationdata():
+  try:
+    channel_data = dd_readfile('channel_data'));
+    channel_data = dd_readfile('channel_data'));
+    channel_data = dd_readfile('channel_data'));
+    channel_data = dd_readfile('channel_data'));
+  except Exception as err:
+    print('Error');
+    print(err);
 
+print('this was executed with batch number '+batch);
+
+if stage == None or stage == 1:
+  print('Stage 1 - TRANSFORM / LOAD (INTO CSV)');
+  try:
+    print('transform and load user data');
+    retrieve_userdata();
+    print('transform and load channel / message / thread  data');
+    retrieve_channeldata();
+    print('transform and load file data');
+    retrieve_filedata();
+  except Exception as err:
+    print(err)
+    exit(-1);
+else:
+  print('skipping Stage 1');
+
+if stage == None or stage <= 2:
+  print('Stage 2 - CREATE ANALYSIS');
+  try:
+    # create_conversationdata();
+  except Exception as err:
+    print(err)
+    exit(-1);
+else:
+  print('skipping Stage 2');

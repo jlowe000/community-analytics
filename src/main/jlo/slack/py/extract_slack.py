@@ -136,7 +136,7 @@ def retrieve_channeldata():
       result = None
       while a < 3 and result == None:
         try:
-          result = client.conversations_list(token=user_token, cursor=cursor);
+          result = client.conversations_list(token=user_token, types='public_channel,private_channel,mpim,im', cursor=cursor);
         except Exception as err:
           print('error in slack call')
           print(err);
