@@ -25,9 +25,14 @@
 * NOTE: even though it is JSON like, the string output is Python objects using ast to evaluate back into the Python objects
 
 **v0.5**
-* Cleaned up pandas / spark / slack imports (reduced the amount of spark execution to timestamp calculations and adding columns.
+* Cleaned up pandas / spark / slack imports (reduced the amount of spark execution to timestamp calculations and adding columns)
 * Further testing of the automated execution __SUCCESS__
 * Added zip execution into the output. (all API and CSV data is captured).
+
+**v0.6**
+* Reduced dependency on spark further (not required for extract).
+* Increased usage pandas vs spark for processing.
+* Added stages to the transform / load (where Stage 1 is Transform from JSON and Load into CSV, Stage 2 is Post-Processing for Output files eg conversation_data, node_data).
 
 ## TODO
 
