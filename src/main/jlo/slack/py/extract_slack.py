@@ -8,19 +8,19 @@ import ssl
 import certifi
 from math import floor
 from datetime import datetime
-from pyspark.sql.functions import expr
-from pyspark.sql.functions import round
-from pyspark.sql.functions import lit
-from pyspark.sql.functions import col
-from pyspark.sql.functions import from_unixtime
-from pyspark.sql.types import FloatType
-from pyspark.sql.types import IntegerType
-from pyspark.sql.types import StringType
-from pyspark.sql.types import ArrayType
-from pyspark.sql.types import StructType
-from pyspark.sql.types import StructField
-from pyspark.sql import SparkSession
-from pyspark.conf import SparkConf
+# from pyspark.sql.functions import expr
+# from pyspark.sql.functions import round
+# from pyspark.sql.functions import lit
+# from pyspark.sql.functions import col
+# from pyspark.sql.functions import from_unixtime
+# from pyspark.sql.types import FloatType
+# from pyspark.sql.types import IntegerType
+# from pyspark.sql.types import StringType
+# from pyspark.sql.types import ArrayType
+# from pyspark.sql.types import StructType
+# from pyspark.sql.types import StructField
+# from pyspark.sql import SparkSession
+# from pyspark.conf import SparkConf
 
 sign_token = os.environ['SLACK_SIGN_TOKEN']
 access_token = os.environ['SLACK_ACCESS_TOKEN']
@@ -29,7 +29,7 @@ user_token = os.environ['SLACK_USER_TOKEN']
 
 ssl_context = ssl.create_default_context(cafile=certifi.where())
 client = slack.WebClient(token=access_token,ssl=ssl_context)
-spark = SparkSession.builder.master('local').appName('SlackBot').getOrCreate();
+# spark = SparkSession.builder.master('local').appName('SlackBot').getOrCreate();
 http = urllib3.PoolManager(cert_reqs='CERT_REQUIRED', ca_certs=certifi.where());
 
 batchtime = datetime.now();
@@ -54,12 +54,19 @@ def parse_channeldata(result):
   try:
     channels = result['channels'];
     for channel in channels:
-      retrieveMessages(channel['id']);
+      filter = False;
+      if 'is_mpim' in channel and channel['is_mpim']:
+        filter = True;
+      if 'is_im' in channel and channel['is_im']:
+        filter = True;
+      if 'is_private' in channel and channel['is_private']:
+        filter = True;
+      retrieve_messages(channel['id'],filter);
   except Exception as err:
     print('Error')
     print(err)
 
-def parse_messagedata(id,result):
+def parse_messagedata(id,result,to_filter):
   filename = "message_data";
   try:
     messages = result['messages']
@@ -68,14 +75,14 @@ def parse_messagedata(id,result):
       try:
         print('replies:'+row['ts']+','+str(row['reply_count']))
         if row['reply_count'] !=  None and row['reply_count'] > 0:
-          retrieveThreads(id,row['ts']);
+          retrieve_threads(id,row['ts'],to_filter);
       except Exception as err:
         print('no replies')
   except Exception as err:
     print('Error')
     print(err)
 
-def dd_filedata(result):
+def parse_filedata(result):
   filename = "file_data";
   try:
     files = result['files']
@@ -93,6 +100,18 @@ def dd_filedata(result):
   except Exception as err:
     print('Error')
     print(err)
+
+def filter_text(result):
+  for message in result['messages']:
+    if 'text' in message:
+      message['text'] = '';
+    if 'blocks' in message:
+      message['blocks'] = [];
+    if 'files' in message:
+      message['files'] = [];
+    if 'attachments' in message:
+      message['attachments'] = [];
+  return result;
 
 def retrieve_userdata():
   try:
@@ -159,7 +178,7 @@ def retrieve_channeldata():
     print('Error')
     print(err)
 
-def retrieveThreads(id,ts):
+def retrieve_threads(id,ts,to_filter):
   try:
     loop = True;
     cursor = '';
@@ -178,6 +197,9 @@ def retrieveThreads(id,ts):
           time.sleep(0.1)
       if result == None:
         exit(-1);
+      if to_filter:
+        print ('filtering messages:'+id);
+        result = filter_text(result);
       dd_writejson('conversation_replies',id+'_'+ts,result);
       try:
         cursor = result['response_metadata']['next_cursor'];
@@ -191,7 +213,7 @@ def retrieveThreads(id,ts):
     print('Error')
     print(err)
 
-def retrieveMessages(id):
+def retrieve_messages(id,to_filter):
   try:
     loop = True;
     cursor = '';
@@ -210,8 +232,11 @@ def retrieveMessages(id):
           time.sleep(0.1)
       if result == None:
         exit(-1);
+      if to_filter:
+        print ('filtering messages:'+id);
+        result = filter_text(result);
       dd_writejson('conversation_history',id,result);
-      parse_messagedata(id,result);
+      parse_messagedata(id,result,to_filter);
       try:
         cursor = result['response_metadata']['next_cursor'];
       except Exception as err:
@@ -245,7 +270,7 @@ def retrieve_filedata():
         exit(-1);
       dd_writejson('files_list','all',result);
       # print(result)
-      dd_filedata(result);
+      parse_filedata(result);
       try:
         pages = result['paging']['pages'];
         page = result['paging']['page'];
