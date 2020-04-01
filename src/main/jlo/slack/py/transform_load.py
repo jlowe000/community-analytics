@@ -523,7 +523,6 @@ if stage == None or stage <= 2:
     create_conversationdata();
     create_nodedata();
     create_edgedata();
-    aggregate_conversations();
     print("");
   except Exception as err:
     print(err)
