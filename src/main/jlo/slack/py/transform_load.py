@@ -2,6 +2,7 @@ import os
 import time
 import csv
 import pandas
+import numpy
 import ast
 import ssl
 import certifi
@@ -359,6 +360,7 @@ def create_conversationdata():
     thread_part_pdf = thread_pdf[['channel','type','subtype','ts','thread_ts','time','user','text']];
     # Merge message and thread data
     conversation_part_pdf = message_part_pdf.append(thread_part_pdf,ignore_index=False);
+    conversation_part_pdf = conversation_part_pdf.drop_duplicates();
     # From user data, split as a method to create default country (if timezone is not recognised).
     tz_split = user_pdf['tz'].str.split('/',expand=True);
     # Merge to create richer iso information
@@ -377,7 +379,7 @@ def create_conversationdata():
     # Select columns
     conversation_pdf = conversation_geo_pdf[['channel','type','subtype','ts','thread_ts','ts_int','time','user','real_name','name','text','city','COUNTRY','ISO']];
     # Rename columns
-    ddpdf = conversation_pdf.rename(columns={'channel':'CHANNEl','type':'TYPE','subtype':'SUBTYPE','ts':'TS','thread_ts':'THREAD_TS','ts_int':'TS_INT','time':'TIME','user':'USER','real_name':'REAL_NAME','name':'NAME','text':'TEXT','city':'CITY','COUNTRY':'COUNTRY','ISO':'ISO'});
+    ddpdf = conversation_pdf.rename(columns={'channel':'CHANNEL','type':'TYPE','subtype':'SUBTYPE','ts':'TS','thread_ts':'THREAD_TS','ts_int':'TS_INT','time':'TIME','user':'USER','real_name':'REAL_NAME','name':'NAME','text':'TEXT','city':'CITY','COUNTRY':'COUNTRY','ISO':'ISO'});
 
     dd_writefile(filename,ddpdf);
   except Exception as err:
@@ -399,29 +401,66 @@ def create_nodedata():
     iso_ref_pdf = zone_ref_pdf.merge(country_ref_pdf,left_on='ISO',right_on='ISO2');
     # Merge iso information with user (based upon timezone).
     user_geo_pdf = user_pdf.merge(iso_ref_pdf,how='left',left_on='tz',right_on='TZ');
+    # Augment columns for union 
     # Add country and city based upon user data timezone
     user_geo_pdf['country']  = tz_split[0];
     user_geo_pdf['city']  = tz_split[1];
     # Mask NAN values of country based upon timezone information
     user_geo_pdf['COUNTRY'] = user_geo_pdf['COUNTRY'].mask(pandas.isnull, user_geo_pdf['country']);
+    # Add "null" columns for union
     user_geo_pdf['type'] = 'user'
     user_geo_pdf['channel_type'] = None
     user_geo_pdf['channel_class'] = None
     user_part_pdf = user_geo_pdf[['id','name','type','real_name','ISO','COUNTRY','city','channel_type','channel_class']];
-
+    # Augment columns for union 
     channel_pdf = channel_pdf.rename(columns={'type':'channel_type','class':'channel_class'});
     channel_pdf['type'] = 'channel'
     channel_pdf['name'] = channel_pdf['name'].mask(pandas.isnull, channel_pdf['id']);
     channel_pdf['real_name'] = channel_pdf['name']
+    # Add "null" columns for union
     channel_pdf['timezone'] = None
     channel_pdf['ISO'] = None
     channel_pdf['COUNTRY'] = None
     channel_pdf['city'] = None
     channel_part_pdf = channel_pdf[['id','name','type','real_name','ISO','COUNTRY','city','channel_type','channel_class']];
-
+    # Merge user and channel nodes
     ddpdf = user_part_pdf.append(channel_part_pdf,ignore_index=True);
     # Rename columns
     ddpdf = ddpdf.rename(columns={'id':'ID','name':'LABEL','type':'TYPE','real_name':'NAME','ISO':'ISO','COUNTRY':'COUNTRY','city':'CITY','channel_type':'CHANNEL_TYPE','channel_class':'CHANNEL_CLASS'});
+
+    dd_writefile(filename,ddpdf);
+  except Exception as err:
+    print('Error');
+    print(err);
+
+def create_edgedata():
+  filename = "edge_data";
+  try:
+    conversation_pdf = dd_readfile('conversation_data');
+    c1_pdf = conversation_pdf.copy();
+    reaction_pdf = dd_readfile('reaction_data');
+    # c1_pdf = c1_pdf[c1_pdf['SUBTYPE'] == 'thread_broadcast' or c1_pdf['SUBTYPE'] == None];
+    c1_pdf_1 = c1_pdf[c1_pdf['SUBTYPE'] == 'thread_broadcast'];
+    c1_pdf_2 = c1_pdf[c1_pdf['SUBTYPE'].isnull()];
+    c1_pdf = c1_pdf_1.append(c1_pdf_2,ignore_index=False);
+    c2_pdf = c1_pdf.copy();
+    c2_pdf = c2_pdf[c2_pdf['THREAD_TS'].notnull()];
+    c4_pdf = c1_pdf.merge(c2_pdf,how='left',left_on='THREAD_TS',right_on='TS');
+    # print(c4_pdf.shape);
+    c4_pdf = c4_pdf[c4_pdf['USER_x'] != c4_pdf['USER_y']];
+    c4_pdf = c4_pdf[['CHANNEL_x','USER_x','USER_y']];
+    c4_pdf['USER_y'] = c4_pdf['USER_y'].mask(pandas.isnull, c4_pdf['CHANNEL_x']);
+    c4_pdf['RELATE'] = 'interacts';
+    c4_pdf = c4_pdf.rename(columns={'CHANNEL_x':'CHANNEL','USER_x':'SOURCE','USER_y':'TARGET','RELATE':'RELATE'});
+    # print(c4_pdf.shape);
+    c3_pdf = c1_pdf.copy();
+    c5_pdf = c3_pdf.merge(reaction_pdf,how='inner',left_on='TS',right_on='ts');
+    c5_pdf = c5_pdf[['CHANNEL','USER','user']];
+    c5_pdf['RELATE'] = 'reacts';
+    c5_pdf = c5_pdf.rename(columns={'CHANNEL':'CHANNEL','USER':'SOURCE','user':'TARGET','RELATE':'RELATE'});
+    # print(c5_pdf.shape);
+    ddpdf = c4_pdf.append(c5_pdf,ignore_index=True);
+    # print(ddpdf);
 
     dd_writefile(filename,ddpdf);
   except Exception as err:
@@ -450,6 +489,7 @@ if stage == None or stage <= 2:
   try:
     create_conversationdata();
     create_nodedata();
+    create_edgedata();
     print("");
   except Exception as err:
     print(err)

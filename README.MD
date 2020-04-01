@@ -34,6 +34,10 @@
 * Increased usage pandas vs spark for processing.
 * Added stages to the transform / load (where Stage 1 is Transform from JSON and Load into CSV, Stage 2 is Post-Processing for Output files eg conversation_data, node_data).
 
+**v0.7**
+* Executed further refinement and testing of the processing of conversation_data.
+* Added the node_data and edge_data (for gephi processing).
+
 ## TODO
 
 **Future things to consider**
