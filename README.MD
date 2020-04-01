@@ -37,13 +37,14 @@
 **v0.7**
 * Executed further refinement and testing of the processing of conversation_data.
 * Added the node_data and edge_data (for gephi processing).
+* Added the aggregations for channels and users.
 
 ## TODO
 
 **Future things to consider**
 * ~~Clean-up the data processing (do we need RDD / Pandas / PySpark to do what needs to be done)~~
-* Determine how to use Pandas to do column insertion (for id and foreign relationships) and timestamp format transformations.
-* Look into the statistics cubes (max counts)
+* ~~Determine how to use Pandas to do column insertion (for id and foreign relationships)~~ (Use merge) still need to determine timestamp format transformations.
+* ~~Look into the statistics cubes (max counts)~~
 * Look into alternate storage into a DB (as well as CSV)
 * ~~look into separating the pipe (into discrete stages) - Extract (from Slack) / Transform (into Output Forms) / Load (into CSV, DB, other)~~ though Transform & Load are in the same process.
 * ~~Remove any linkages to slack and http in the transform / load script.~~

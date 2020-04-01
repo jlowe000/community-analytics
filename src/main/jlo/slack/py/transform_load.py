@@ -51,9 +51,9 @@ if stage == None:
 def sortfile_key(file):
   return int(file[-21:-5]);
 
-def dd_writefile(filename,pdf):
+def dd_writefile(filename,pdf,index=False):
   with open('data/'+batch+'/csv/'+filename+'.csv','a') as f:
-    pdf.to_csv(f,index=False,quoting=csv.QUOTE_ALL,mode='a',header=f.tell()==0);
+    pdf.to_csv(f,index=index,quoting=csv.QUOTE_ALL,mode='a',header=f.tell()==0);
 
 def dd_readfile(filename):
   try:
@@ -467,6 +467,39 @@ def create_edgedata():
     print('Error');
     print(err);
 
+def aggregate_conversationdata():
+  filename = "edge_data";
+  try:
+    channel_pdf = dd_readfile('channel_data');
+    user_pdf = dd_readfile('user_data');
+
+    c1_pdf = dd_readfile('conversation_data');
+    c1_pdf_1 = c1_pdf[c1_pdf['SUBTYPE'] == 'thread_broadcast'];
+    c1_pdf_2 = c1_pdf[c1_pdf['SUBTYPE'].isnull()];
+    c1_pdf = c1_pdf_1.append(c1_pdf_2,ignore_index=False);
+    agg_pdf = c1_pdf.groupby('CHANNEL').count()[['TS','THREAD_TS']];
+    print(agg_pdf);
+    dd_writefile('aggr_by_channel',agg_pdf,True);
+    agg_pdf = c1_pdf.groupby(['CHANNEL','USER']).count()[['TS','THREAD_TS']];
+    agg_pdf['POSTS'] = agg_pdf['TS'] + agg_pdf['THREAD_TS'];
+    print(agg_pdf);
+    dd_writefile('aggr_by_channel_user',agg_pdf,True);
+    max_pdf = agg_pdf.groupby(['CHANNEL']).max()[['POSTS']];
+    print(max_pdf);
+    m1_pdf = agg_pdf.merge(max_pdf,how='inner',left_index=True,right_index=True);
+    m1_pdf = m1_pdf[m1_pdf['POSTS_x'] == m1_pdf['POSTS_y']];
+    print(m1_pdf);
+    m1_pdf.reset_index(inplace=True);
+    m2_pdf = m1_pdf.merge(user_pdf,how='left',right_on='id',left_on='USER');
+    m3_pdf = m2_pdf.merge(channel_pdf,how='left',right_on='id',left_on='CHANNEL');
+    m4_pdf = m3_pdf[['CHANNEL','name_y','USER','real_name','POSTS_x']];
+    m4_pdf = m4_pdf.rename(columns={'CHANNEL':'CHANNEL_ID','name_y':'CHANNEL_NAME','USER':'USER_ID','real_name':'USER_NAME','POSTS_x':'POSTS'});
+    print(m4_pdf);
+    dd_writefile('max_by_channel_user',m4_pdf);
+  except Exception as err:
+    print('Error');
+    print(err);
+
 print('this was executed with batch number '+batch);
 
 if stage == None or stage == 1:
@@ -490,6 +523,18 @@ if stage == None or stage <= 2:
     create_conversationdata();
     create_nodedata();
     create_edgedata();
+    aggregate_conversations();
+    print("");
+  except Exception as err:
+    print(err)
+    exit(-1);
+else:
+  print('skipping Stage 2');
+
+if stage == None or stage <= 3:
+  print('Stage 3 - CREATE AGGREGATES');
+  try:
+    aggregate_conversationdata();
     print("");
   except Exception as err:
     print(err)
