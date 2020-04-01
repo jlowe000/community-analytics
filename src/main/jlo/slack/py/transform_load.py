@@ -454,7 +454,7 @@ def create_edgedata():
     c4_pdf = c4_pdf.rename(columns={'CHANNEL_x':'CHANNEL','USER_x':'SOURCE','USER_y':'TARGET','RELATE':'RELATE'});
     # print(c4_pdf.shape);
     c3_pdf = c1_pdf.copy();
-    c5_pdf = c3_pdf.merge(reaction_pdf,how='inner',left_on='TS',right_on='ts');
+    c5_pdf = c3_pdf.merge(reaction_pdf,how='left',left_on='TS',right_on='ts');
     c5_pdf = c5_pdf[['CHANNEL','USER','user']];
     c5_pdf['RELATE'] = 'reacts';
     c5_pdf = c5_pdf.rename(columns={'CHANNEL':'CHANNEL','USER':'SOURCE','user':'TARGET','RELATE':'RELATE'});

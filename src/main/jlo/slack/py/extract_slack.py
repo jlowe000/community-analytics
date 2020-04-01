@@ -39,7 +39,8 @@ batch = batchtime.strftime('%Y%m%d%H%M%S')
 def dd_writemetadata():
   os.makedirs('data/'+batch+'/api');
   os.makedirs('data/'+batch+'/csv');
-  f = open('data/'+batch+'/csv/metadata.csv','a');
+  os.makedirs('data/'+batch+'/metadata');
+  f = open('data/'+batch+'/metadata/metadata.csv','a');
   f.write('"time"\n"'+batchtime.isoformat(timespec='seconds')+'"\n');
   f.close();
 
