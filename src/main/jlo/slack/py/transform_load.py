@@ -13,21 +13,6 @@ import itertools
 from functools import reduce
 from math import floor
 from datetime import datetime
-from pyspark.sql.functions import explode
-from pyspark.sql.functions import expr
-from pyspark.sql.functions import round
-from pyspark.sql.functions import lit
-from pyspark.sql.functions import col
-from pyspark.sql.functions import from_unixtime
-from pyspark.sql.types import FloatType
-from pyspark.sql.types import BooleanType
-from pyspark.sql.types import IntegerType
-from pyspark.sql.types import StringType
-from pyspark.sql.types import ArrayType
-from pyspark.sql.types import StructType
-from pyspark.sql.types import StructField
-from pyspark.sql import SparkSession
-from pyspark.conf import SparkConf
 
 sign_token = os.environ['SLACK_SIGN_TOKEN']
 access_token = os.environ['SLACK_ACCESS_TOKEN']
@@ -35,7 +20,6 @@ user_token = os.environ['SLACK_USER_TOKEN']
 # user_token = 'SLACK_USER_TOKEN'  
 
 # ssl_context = ssl.create_default_context(cafile=certifi.where())
-spark = SparkSession.builder.master('local').appName('SlackBot').getOrCreate();
 
 batch = None
 stage = None
@@ -73,6 +57,7 @@ def dd_readref(filename):
 
 def epochstr_to_isostr(s):
   return time.strftime('%Y-%m-%dT%H:%M:%S.000',time.localtime(float(s)));
+  # return datetime.utcfromtimestamp(time.gmtime(float(s)));
 
 def dd_userdata(result):
   filename = "user_data";
@@ -110,7 +95,8 @@ def dd_channeldata(result):
       l.append({'id': id, 'name': channel_name, 'type': channel_type, 'class': channel_class});
       retrieve_messages(id);
     ddpdf = pandas.DataFrame.from_records(l);
-    dd_writefile(filename,ddpdf)
+    if len(ddpdf.index) > 0:
+      dd_writefile(filename,ddpdf)
   except Exception as err:
     print('Error')
     print(err)
@@ -119,33 +105,27 @@ def dd_messagedata(id,result):
   filename = "message_data";
   try:
     messages = result['messages']
-    r1 = spark.sparkContext.parallelize(messages);
-    s1 = StructType([
-               StructField('channel', StringType(), True),
-               StructField('type', StringType(), True),
-               StructField('subtype', StringType(), True),
-               StructField('ts', StringType(), True),
-               StructField('thread_ts', StringType(), True),
-               StructField('time', StringType(), True),
-               StructField('reply_count', IntegerType(), True),
-               StructField('reactions', ArrayType(StructType([
-                 StructField('name', StringType(), True),
-                 StructField('users', ArrayType(StringType()), True)])), True),
-               StructField('user', StringType(), True),
-               StructField('text', StringType(), True)]);
-    df1 = spark.createDataFrame(r1,s1);
-    for row in df1.collect():
-      dd_reactiondata(row)
-      if 'reply_count' in df1.columns and row['reply_count'] != None and row['reply_count'] > 0:
-        print('replies:'+row['ts']+','+str(row['reply_count']))
-        retrieve_threads(id,row['ts']);
-      # else:
-      #   print('no replies');
-    df1 = df1.na.fill({'channel':id})
-    df1 = df1.drop('reactions');
-    df2 = df1.withColumn('time',from_unixtime(round(col('ts').astype(FloatType())),'yyyy-MM-dd\'T\'HH:mm:ss.000'))
-    ddpdf = df2.toPandas();
-    dd_writefile(filename,ddpdf)
+    for message in result['messages']:
+      dd_reactiondata(message)
+      if 'reply_count' in message and message['reply_count'] != None and message['reply_count'] > 0:
+        print('replies:'+message['ts']+','+str(message['reply_count']));
+        retrieve_threads(id,message['ts']);
+    ddpdf = pandas.DataFrame.from_records(messages);
+    if len(ddpdf.index) > 0:
+      ddpdf['channel'] = id;
+      if 'subtype' not in ddpdf:
+        ddpdf['subtype'] = None;
+      if 'reply_count' not in ddpdf:
+        ddpdf['reply_count'] = None;
+      if 'thread_ts' not in ddpdf:
+        ddpdf['thread_ts'] = None;
+      if 'user' not in ddpdf:
+        ddpdf['user'] = None;
+      if 'text' not in ddpdf:
+        ddpdf['text'] = None;
+      ddpdf['time'] = ddpdf['ts'].apply(epochstr_to_isostr);
+      ddpdf = ddpdf[['channel','type','subtype','ts','thread_ts','time','reply_count','user','text']];
+      dd_writefile(filename,ddpdf)
   except Exception as err:
     print('Error - dd_messagedata')
     print(err)
@@ -156,22 +136,19 @@ def dd_threaddata(id,ts,result):
     messages = result['messages']
     for row in messages:
       dd_reactiondata(row)
-    s1 = StructType([
-               StructField('channel', StringType(), True),
-               StructField('type', StringType(), True),
-               StructField('subtype', StringType(), True),
-               StructField('ts', StringType(), True),
-               StructField('thread_ts', StringType(), True),
-               StructField('time', StringType(), True),
-               StructField('user', StringType(), True),
-               StructField('text', StringType(), True)]);
-    r1 = spark.sparkContext.parallelize(messages);
-    df1 = spark.createDataFrame(r1,s1);
-    df1 = df1.na.fill({'channel':id})
-    df2 = df1.withColumn('time',from_unixtime(round(col('ts').astype(FloatType())),'yyyy-MM-dd\'T\'HH:mm:ss.000'))
-    # df2.show()
-    pdf = df2.toPandas();
-    dd_writefile(filename,pdf)
+    ddpdf = pandas.DataFrame.from_records(messages);
+    if len(ddpdf.index) > 0:
+      ddpdf['channel'] = id;
+      if 'subtype' not in ddpdf:
+        ddpdf['subtype'] = None;
+      if 'user' not in ddpdf:
+        ddpdf['user'] = None;
+      if 'text' not in ddpdf:
+        ddpdf['text'] = None;
+      ddpdf['time'] = ddpdf['ts'].apply(epochstr_to_isostr);
+      ddpdf = ddpdf[['channel','type','subtype','ts','thread_ts','time','user','text']];
+      # print(ddpdf);
+      dd_writefile(filename,ddpdf)
   except Exception as err:
     print('Error')
     print(err)
@@ -187,7 +164,8 @@ def dd_reactiondata(row):
           for user in reaction['users']:
             l.append({'reaction':str(reaction['name']), 'ts': str(row['ts']), 'user': user});
         pdf = pandas.DataFrame.from_records(l);
-        dd_writefile(filename,pdf)
+        if len(pdf.index) > 0:
+          dd_writefile(filename,pdf)
   except Exception as err:
     print('Error - dd_reactiondata')
     print(err)
@@ -195,24 +173,12 @@ def dd_reactiondata(row):
 def dd_filedata(result):
   filename = "file_data";
   try:
-    schema = StructType([
-               StructField('id', StringType(), True),
-               StructField('channels', ArrayType(StringType()), True),
-               StructField('channel', StringType(), True),
-               StructField('name', StringType(), True),
-               StructField('timestamp', StringType(), True),
-               StructField('time', StringType(), True),
-               StructField('user', StringType(), True)]);
     files = result['files']
-    rdd = spark.sparkContext.parallelize(files);
-    df = spark.createDataFrame(rdd,schema);
-    df = df.withColumn('time',from_unixtime(round(col('timestamp').astype(FloatType())),'yyyy-MM-dd\'T\'HH:mm:ss.000'))
-    # df.show()
     lc = [];
-    for row in df.collect():
+    for row in files:
       if 'channels' in row and row['channels'] != None:
         for channel in row['channels']:
-          lc.append({'id': row['id'], 'channel': channel, 'name': row['name'], 'time': row['time'], 'user': row['user']});
+          lc.append({'id': row['id'], 'channel': channel, 'name': row['name'], 'time': epochstr_to_isostr(row['timestamp']), 'user': row['user']});
     print('files downloaded mapped to channels - '+str(len(lc)))
     pdf = pandas.DataFrame.from_records(lc);
     dd_writefile(filename,pdf)

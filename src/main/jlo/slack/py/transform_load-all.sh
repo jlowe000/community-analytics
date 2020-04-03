@@ -3,7 +3,7 @@
 # ./run.sh extract_slack.py
 backup_version=v1
 current_version=v2
-for archive in `ls data -tp | grep /$`; do
+for archive in `ls data -tpr | grep /$`; do
   archive=${archive%?}
   echo "batch id is :${archive}"
   rm data/${archive}/csv/*
