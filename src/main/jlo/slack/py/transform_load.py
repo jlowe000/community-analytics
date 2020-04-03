@@ -8,10 +8,12 @@ import ssl
 import certifi
 import glob
 import sys
+import json
 import itertools
 from functools import reduce
 from math import floor
 from datetime import datetime
+from pyspark.sql.functions import explode
 from pyspark.sql.functions import expr
 from pyspark.sql.functions import round
 from pyspark.sql.functions import lit
@@ -68,6 +70,9 @@ def dd_readref(filename):
     return pdf;
   except Exception as err:
     print(err);
+
+def epochstr_to_isostr(s):
+  return time.strftime('%Y-%m-%dT%H:%M:%S.000',time.localtime(float(s)));
 
 def dd_userdata(result):
   filename = "user_data";
@@ -215,6 +220,32 @@ def dd_filedata(result):
     print('Error')
     print(err)
 
+def dd_polldata(id,result):
+  filename = "poll_data";
+  try:
+    messages = result['messages']
+    lc = [];
+    poll_id = None;
+    poll_text = None;
+    for message in messages:
+      if 'subtype' in message and message['subtype'] == 'bot_message' and 'blocks' in message and message['blocks'] != None:
+        for block in message['blocks']:
+          if 'block_id' in block and block['block_id'][0:5] == 'poll-':
+            print(block['block_id']);
+            if block['block_id'][-4:] == 'menu':
+              poll_id = block['block_id'][:-15];
+              poll_text = block['text']['text'];
+            else:
+              print(poll_id);
+              print(block['text']['text'].split('`'));
+              vote = block['text']['text'].split('`');
+              lc.append({'poll_id': poll_id, 'ts': message['ts'], 'time': epochstr_to_isostr(message['ts']), 'text': poll_text, 'vote_item': vote[0].strip(), 'vote_count': int(vote[1]) if len(vote) > 1 else 0 });
+    pdf = pandas.DataFrame.from_records(lc);
+    dd_writefile(filename,pdf)
+  except Exception as err:
+    print('Error - dd_polldata')
+    print(err)
+
 def retrieve_userdata():
   try:
     loop = True;
@@ -307,7 +338,7 @@ def retrieve_threads(id,ts):
           f = open(file,'r');
           result = ast.literal_eval(f.read());
         except Exception as err:
-          print('error in slack call')
+          print('error in retrieve thread call')
           print(err);
           a += 1
           result = None
@@ -333,7 +364,7 @@ def retrieve_filedata():
           f = open(file,'r');
           result = ast.literal_eval(f.read());
         except Exception as err:
-          print('error in slack call')
+          print('error in retrieve file call')
           print(err);
           a += 1
           result = None
@@ -341,6 +372,66 @@ def retrieve_filedata():
       if result == None:
         exit(-1);
       dd_filedata(result);
+  except Exception as err:
+    print('Error')
+    print(err)
+
+def retrieve_polldata(botid):
+  try:
+    loop = True;
+    files = glob.glob('data/'+batch+'/api/conversation_history-C010VKAQ96V*.json')
+    files.sort(key = sortfile_key)
+    for file in files:
+      print('retrieving poll_data for channel: '+botid+' '+file);
+      a = 0;
+      result = None
+      while a < 3 and result == None:
+        try:
+          f = open(file,'r');
+          result = ast.literal_eval(f.read());
+        except Exception as err:
+          print('error in file io')
+          print(err);
+          a += 1
+          result = None
+          time.sleep(0.1)
+      if result == None:
+        exit(-1);
+      dd_polldata(botid,result);
+  except Exception as err:
+    print('Error')
+    print(err)
+
+def convert_to_json():
+  try:
+    loop = True;
+    try:
+      os.makedirs('data/'+batch+'/json');
+    except Exception as err:
+      print('directory exists');
+    files = glob.glob('data/'+batch+'/api/*.json')
+    for file in files:
+      print('retrieving file_data: '+file);
+      a = 0;
+      result = None
+      while a < 3 and result == None:
+        try:
+          fi = open(file,'r');
+          result = ast.literal_eval(fi.read());
+          json_result = json.dumps(result)
+          outfile = file.replace('/api/','/json/');
+          fo = open(outfile,'w')
+          fo.write(str(json_result))
+          fo.close();
+          fi.close();
+        except Exception as err:
+          print('error in file conversion')
+          print(err);
+          a += 1
+          result = None
+          time.sleep(0.1)
+      if result == None:
+        exit(-1);
   except Exception as err:
     print('Error')
     print(err)
@@ -478,14 +569,19 @@ def aggregate_conversationdata():
     c1_pdf_2 = c1_pdf[c1_pdf['SUBTYPE'].isnull()];
     c1_pdf = c1_pdf_1.append(c1_pdf_2,ignore_index=False);
     agg_pdf = c1_pdf.groupby('CHANNEL').count()[['TS','THREAD_TS']];
-    print(agg_pdf);
+    # print(agg_pdf);
     dd_writefile('aggr_by_channel',agg_pdf,True);
     agg_pdf = c1_pdf.groupby(['CHANNEL','USER']).count()[['TS','THREAD_TS']];
     agg_pdf['POSTS'] = agg_pdf['TS'] + agg_pdf['THREAD_TS'];
-    print(agg_pdf);
+    # print(agg_pdf);
     dd_writefile('aggr_by_channel_user',agg_pdf,True);
+    unique_pdf = agg_pdf.copy();
+    unique_pdf.reset_index(inplace=True);
+    unique_pdf = unique_pdf.groupby(['CHANNEL']).count()[['USER']];
+    print(unique_pdf);
+    dd_writefile('number_channel_user',unique_pdf,True);
     max_pdf = agg_pdf.groupby(['CHANNEL']).max()[['POSTS']];
-    print(max_pdf);
+    # print(max_pdf);
     m1_pdf = agg_pdf.merge(max_pdf,how='inner',left_index=True,right_index=True);
     m1_pdf = m1_pdf[m1_pdf['POSTS_x'] == m1_pdf['POSTS_y']];
     print(m1_pdf);
@@ -494,7 +590,7 @@ def aggregate_conversationdata():
     m3_pdf = m2_pdf.merge(channel_pdf,how='left',right_on='id',left_on='CHANNEL');
     m4_pdf = m3_pdf[['CHANNEL','name_y','USER','real_name','POSTS_x']];
     m4_pdf = m4_pdf.rename(columns={'CHANNEL':'CHANNEL_ID','name_y':'CHANNEL_NAME','USER':'USER_ID','real_name':'USER_NAME','POSTS_x':'POSTS'});
-    print(m4_pdf);
+    # print(m4_pdf);
     dd_writefile('max_by_channel_user',m4_pdf);
   except Exception as err:
     print('Error');
@@ -502,41 +598,47 @@ def aggregate_conversationdata():
 
 print('this was executed with batch number '+batch);
 
-if stage == None or stage == 1:
-  print('Stage 1 - TRANSFORM / LOAD (INTO CSV)');
-  try:
-    print('transform and load user data');
-    retrieve_userdata();
-    print('transform and load channel / message / thread  data');
-    retrieve_channeldata();
-    print('transform and load file data');
-    retrieve_filedata();
-  except Exception as err:
-    print(err)
-    exit(-1);
-else:
-  print('skipping Stage 1');
+def exec_stages():
+  if stage == None or stage == 1:
+    print('Stage 1 - TRANSFORM / LOAD (INTO CSV AND JSON)');
+    try:
+      print('transform and load user data');
+      retrieve_userdata();
+      print('transform and load channel / message / thread  data');
+      retrieve_channeldata();
+      print('transform and load file data');
+      retrieve_filedata();
+      print('transform and load poll data from a specific bot id: (argh - fragile) B0115K4AY5B');
+      retrieve_polldata('B0115K4AY5B');
+      convert_to_json();
+    except Exception as err:
+      print(err)
+      exit(-1);
+  else:
+    print('skipping Stage 1');
 
-if stage == None or stage <= 2:
-  print('Stage 2 - CREATE ANALYSIS');
-  try:
-    create_conversationdata();
-    create_nodedata();
-    create_edgedata();
-    print("");
-  except Exception as err:
-    print(err)
-    exit(-1);
-else:
-  print('skipping Stage 2');
+  if stage == None or stage <= 2:
+    print('Stage 2 - CREATE ANALYSIS');
+    try:
+      create_conversationdata();
+      create_nodedata();
+      create_edgedata();
+      print("");
+    except Exception as err:
+      print(err)
+      exit(-1);
+  else:
+    print('skipping Stage 2');
 
-if stage == None or stage <= 3:
-  print('Stage 3 - CREATE AGGREGATES');
-  try:
-    aggregate_conversationdata();
-    print("");
-  except Exception as err:
-    print(err)
-    exit(-1);
-else:
-  print('skipping Stage 2');
+  if stage == None or stage <= 3:
+    print('Stage 3 - CREATE AGGREGATES');
+    try:
+      aggregate_conversationdata();
+      print("");
+    except Exception as err:
+      print(err)
+      exit(-1);
+  else:
+    print('skipping Stage 3');
+  
+exec_stages();
