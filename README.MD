@@ -39,13 +39,18 @@
 * Added the node_data and edge_data (for gephi processing).
 * Added the aggregations for channels and users.
 
+**v0.8**
+* Removed spark altogether and using pandas to manipulate the datasets.
+* Added in json output translation - raw /api has been saved as Python object format (which is not JSON).
+* Added channel mapping to unique users into aggregations
+
 ## TODO
 
 **Future things to consider**
 * ~~Clean-up the data processing (do we need RDD / Pandas / PySpark to do what needs to be done)~~
-* ~~Determine how to use Pandas to do column insertion (for id and foreign relationships)~~ (Use merge) still need to determine timestamp format transformations.
+* ~~Determine how to use Pandas to do column insertion (for id and foreign relationships)~~ ~~(Use merge) still need to determine timestamp format transformations.~~
 * ~~Look into the statistics cubes (max counts)~~
-* Look into alternate storage into a DB (as well as CSV)
+* Look into alternate storage into a DB (as well as CSV) - potential representations in postgres, neojs, graphql
 * ~~look into separating the pipe (into discrete stages) - Extract (from Slack) / Transform (into Output Forms) / Load (into CSV, DB, other)~~ though Transform & Load are in the same process.
 * ~~Remove any linkages to slack and http in the transform / load script.~~
 
@@ -63,7 +68,6 @@
 * urllib3
 * panda
 * numpy 
-* pyspark
 
 ## Slack OAuth Permissions
 

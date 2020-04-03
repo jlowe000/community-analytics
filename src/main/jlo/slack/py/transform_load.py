@@ -92,7 +92,11 @@ def dd_channeldata(result):
         channel_class = 'public';
       if 'name' in channel:
         channel_name = channel['name'] 
-      l.append({'id': id, 'name': channel_name, 'type': channel_type, 'class': channel_class});
+      if 'is_archived' in channel:
+        is_archived = channel['is_archived'] 
+      if 'is_private' in channel:
+        is_private = channel['is_private'] 
+      l.append({'id': id, 'name': channel_name, 'type': channel_type, 'class': channel_class, 'is_archived': is_archived, 'is_private': is_private });
       retrieve_messages(id);
     ddpdf = pandas.DataFrame.from_records(l);
     if len(ddpdf.index) > 0:
