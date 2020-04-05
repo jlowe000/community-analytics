@@ -219,7 +219,7 @@ def dd_polldata(id,result):
 def retrieve_userdata():
   try:
     loop = True;
-    files = glob.glob('data/'+batch+'/api/user_list-*.json')
+    files = glob.glob('data/'+batch+'/api/user_list*.json')
     for file in files:
       print('retrieving user_data - '+file);
       a = 0;
@@ -244,7 +244,7 @@ def retrieve_userdata():
 def retrieve_channeldata():
   try:
     loop = True;
-    files = glob.glob('data/'+batch+'/api/conversation_list-*.json')
+    files = glob.glob('data/'+batch+'/api/conversation_list*.json')
     files.sort(key = sortfile_key)
     # assuming it is in order of "filename" - though there are conflicting messages
     for file in files:
@@ -529,7 +529,6 @@ def create_edgedata():
     print(err);
 
 def aggregate_conversationdata():
-  filename = "edge_data";
   try:
     channel_pdf = dd_readfile('channel_data');
     user_pdf = dd_readfile('user_data');
@@ -566,6 +565,78 @@ def aggregate_conversationdata():
     print('Error');
     print(err);
 
+def create_timediff_conversations():
+  filename = "conversation_timediff_data";
+  try:
+    df = dd_readfile('conversation_data');
+    df = df.sort_values(['CHANNEL','TS'],ascending=(True,True));
+    df['TIME_TS'] = pandas.to_datetime(df['TIME']);
+    # print(df);
+    ddf = df[['CHANNEL','TIME_TS']];
+    # print(ddf);
+    # print(ddf.dtypes);
+    ddf = ddf.groupby('CHANNEL').diff();
+    ddf['TIME_TS'] = ddf['TIME_TS']  / numpy.timedelta64(1, 's');
+    ddf['TIME_TS'] = ddf['TIME_TS'].mask(pandas.isnull, 0);
+    # print(ddf);
+    # print(ddf.dtypes);
+    df = df.merge(ddf,left_index=True,right_index=True);
+    # print(df);
+    # print(df.dtypes);
+    ddpdf = df[['CHANNEL','TYPE','SUBTYPE','TS','THREAD_TS','TS_INT','TIME','USER','REAL_NAME','NAME','TEXT','CITY','COUNTRY','ISO','TIME_TS_y']];
+    ddpdf = ddpdf.rename(columns={'TIME_TS_y':'DIFF'});
+    # print(ddpdf);
+    # print(ddpdf.dtypes);
+    dd_writefile(filename,ddpdf);
+  except Exception as err:
+    print('Error');
+    print(err);
+
+def create_timediff_threads():
+  filename = "threads_timediff_data";
+  try:
+    df = dd_readfile('conversation_data');
+    df = df[df['THREAD_TS'].notnull()];
+    df = df.sort_values(['CHANNEL','THREAD_TS','TS'],ascending=(True,True,True));
+    df['TIME_TS'] = pandas.to_datetime(df['TIME']);
+    # print(df);
+    ddf = df[['CHANNEL','THREAD_TS','TIME_TS']];
+    # print(ddf);
+    # print(ddf.dtypes);
+    ddf = ddf.groupby(['CHANNEL','THREAD_TS']).diff();
+    ddf['TIME_TS'] = ddf['TIME_TS']  / numpy.timedelta64(1, 's');
+    ddf['TIME_TS'] = ddf['TIME_TS'].mask(pandas.isnull, 0);
+    # print(ddf);
+    # print(ddf.dtypes);
+    df = df.merge(ddf,left_index=True,right_index=True);
+    # print(df);
+    # print(df.dtypes);
+    ddpdf = df[['CHANNEL','TYPE','SUBTYPE','TS','THREAD_TS','TS_INT','TIME','USER','REAL_NAME','NAME','TEXT','CITY','COUNTRY','ISO','TIME_TS_y']];
+    ddpdf = ddpdf.rename(columns={'TIME_TS_y':'DIFF'});
+    # print(ddpdf);
+    # print(ddpdf.dtypes);
+    dd_writefile(filename,ddpdf);
+  except Exception as err:
+    print('Error');
+    print(err);
+
+def aggregate_threads():
+  filename = "length_threads_data";
+  try:
+    df = dd_readfile('conversation_data');
+    df = df[df['THREAD_TS'].notnull()];
+    ddf = df.groupby(['CHANNEL','THREAD_TS']).count()[['TS']];
+    ddf.reset_index(inplace=True);
+    print(ddf);
+    dd_writefile('aggr_by_thread',ddf);
+    ddf = df.groupby(['CHANNEL','THREAD_TS','USER']).count()[['TS']];
+    ddf.reset_index(inplace=True);
+    print(ddf);
+    dd_writefile('aggr_by_thread_user',ddf);
+  except Exception as err:
+    print('Error');
+    print(err);
+
 print('this was executed with batch number '+batch);
 
 def exec_stages():
@@ -591,6 +662,7 @@ def exec_stages():
     print('Stage 2 - CREATE ANALYSIS');
     try:
       create_conversationdata();
+      create_timediff_conversations();
       create_nodedata();
       create_edgedata();
       print("");
@@ -604,6 +676,7 @@ def exec_stages():
     print('Stage 3 - CREATE AGGREGATES');
     try:
       aggregate_conversationdata();
+      aggregate_threads();
       print("");
     except Exception as err:
       print(err)
