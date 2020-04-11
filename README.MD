@@ -68,6 +68,7 @@
 * urllib3
 * panda
 * numpy 
+* nltk
 
 ## Slack OAuth Permissions
 
