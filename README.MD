@@ -84,8 +84,8 @@
 * channel:history
 * channel:read
 * files:read
-* groups:history
-* groups:read
+* groups:history (optional)
+* groups:read (optional)
 * im:history (optional)
 * im:read (optional)
 * mpim:history (optional)
@@ -100,3 +100,34 @@ These configuration requirements are used as part of the scripted environment
 * Bot User OAuth Access Token (SLACK_USER_TOKEN)
 * Client Secret (SLACK_CLIENT_TOKEN)
 * Signing Secret (SLACK_SIGN_TOKEN)
+
+## Solution Overview
+
+The process has three steps - extract, transform, analyse. The current solution has two files:
+* extract_slack.py - calls the Slack APIs to collect the data and saves the data directly to file. The files are raw Python objects (combination of dictionary and list objects.
+* transform_load.py - transforms the raw objects into a model that we can use to aggregate. There are currently two forms - CSV which is in the model, JSON which is a replica of the Python objects.
+
+### Information about extract_slack.py
+
+* This script requires the Slack API OAuth tokens configured.
+* The implementation assumes that all user token scopes have been approved.
+* groups, im and mpim can be excluded by removing them from the client.conversation_list method call and restricting the types of conversations.
+* Even though (and something to fix) the output is not JSON - it is Python objects stringified.
+* The data output is created in the ./data directory with a batch number based upon the current timestamp.
+* API data will be captured in the /data/<batch>/api directory.
+* Each API request is captured in separate files.
+* Response payloads do not include the search keys hence the payload does not have the foreign keys. The main one to be be concerned about is the relationship from channel to message to reply (in a thread).
+* The IDs have been encoded in the file name.
+* A note about the batch information was created in the /data/<batch>/metadata/metadata.csv file.
+
+### Information about transform_load.py
+
+* This script has two modes - 1. transform into model, merge into master dataset and aggregate individual dataset (if a batch id is passed as an argument which is the <batch> directory name. and 2. aggregate master dataset. (if no batch id was provided).
+* Based upon the file naming convention and ids encoded in the files, the model is created to form JSON objects and CSV datasets.
+* The CSV datasets combine the information from the APIs into CSV format.
+* The CSV datasets is then used to aggregate into summarised datasets.
+* The CSV datasets from the batch is merged into a master dataset in the ./data/master/csv directory.
+* To merge - add new records, update existing records.
+* The decision not to delete records is such that the dataset covers the lifespan of the workspace. There is a limit of 10k messages in the workspace and hence using this as a backup as well.
+* The master dataset can also be aggregated into summarised datasets.
+* As part of the summarised datasets, node and edge files are created that can be imported into a gephi.
