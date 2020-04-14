@@ -59,7 +59,7 @@ def dd_processfile(file_wildcard,dd_function,**kwargs):
         exit(-1);
       kwargs.update({'infile': file});
       kwargs.update({'result': result});
-      dd_function(**kwargs);
+      return dd_function(**kwargs);
   except Exception as err:
     print('Error')
     print(err)

@@ -21,10 +21,16 @@ user_token = os.environ['SLACK_USER_TOKEN']
 
 # ssl_context = ssl.create_default_context(cafile=certifi.where())
 
+master = 'master/csv'
+metrics = 'metrics/csv'
 batch = None
 stage = None
 if len(sys.argv) >= 2:
   batch = sys.argv[1]
+  master = batch+'/csv'
+  metrics = batch+'/metrics'
+else:
+  batch = 'master'
 if len(sys.argv) >= 3:
   stage = int(sys.argv[2])
 
@@ -33,20 +39,51 @@ if batch == None:
   exit(-1);
 if stage == None:
   print('run all stages');
+if batch == 'master':
+  print('creating master metrics');
+  stage = 3
+
+def dd_makedirs():
+  try:
+    os.makedirs('data/'+batch+'/api');
+  except Exception:
+    print("/api exists");
+  try:
+    os.makedirs('data/'+batch+'/csv');
+  except Exception:
+    print("/csv exists");
+  try:
+    os.makedirs('data/'+batch+'/metrics');
+  except Exception:
+    print("/metrics exists");
+  try:
+    os.makedirs('data/'+batch+'/json');
+  except Exception:
+    print("/json exists");
+  try:
+    os.makedirs('data/'+batch+'/metadata');
+  except Exception:
+    print("/metadata exists");
 
 def sortfile_key(file):
   return int(file[-21:-5]);
 
-def dd_writefile(filename,pdf,index=False):
-  with open('data/'+batch+'/csv/'+filename+'.csv','a') as f:
+def dd_backupfile(filename):
+  backuptime = datetime.now().strftime('%Y%m%d%H%M%S')
+  # move file to a backup
+  os.rename('data/master/csv/'+filename+'.csv','data/master/csv/'+filename+'-'+batch+'.csv')
+
+def dd_writefile(key,filename,pdf,index=False):
+  with open('data/'+key+'/'+filename+'.csv','a') as f:
     pdf.to_csv(f,index=index,quoting=csv.QUOTE_ALL,mode='a',header=f.tell()==0);
 
-def dd_readfile(filename):
+def dd_readfile(key,filename):
   try:
-    pdf = pandas.read_csv('data/'+batch+'/csv/'+filename+'.csv');
+    pdf = pandas.read_csv('data/'+key+'/'+filename+'.csv',dtype={'TS':str,'THREAD_TS':str,'ts':str,'thread_ts':str});
     return pdf;
   except Exception as err:
     print(err);
+    return pandas.DataFrame();
 
 def dd_readref(filename):
   try:
@@ -54,6 +91,7 @@ def dd_readref(filename):
     return pdf;
   except Exception as err:
     print(err);
+    return pandas.DataFrame();
 
 def epochstr_to_isostr(s):
   return time.strftime('%Y-%m-%dT%H:%M:%S.000',time.localtime(float(s)));
@@ -65,7 +103,7 @@ def dd_userdata(result):
     users = result['members'];
     pdf = pandas.DataFrame.from_records(users);
     ddpdf = pdf[['id','name','real_name','tz']];
-    dd_writefile(filename,ddpdf)
+    dd_writefile(master,filename,ddpdf)
   except Exception as err:
     print('Error')
     print(err)
@@ -100,7 +138,7 @@ def dd_channeldata(result):
       retrieve_messages(id);
     ddpdf = pandas.DataFrame.from_records(l);
     if len(ddpdf.index) > 0:
-      dd_writefile(filename,ddpdf)
+      dd_writefile(master,filename,ddpdf)
   except Exception as err:
     print('Error')
     print(err)
@@ -110,26 +148,31 @@ def dd_messagedata(id,result):
   try:
     messages = result['messages']
     for message in result['messages']:
-      dd_reactiondata(message)
       if 'reply_count' in message and message['reply_count'] != None and message['reply_count'] > 0:
         print('replies:'+message['ts']+','+str(message['reply_count']));
         retrieve_threads(id,message['ts']);
+      else:
+        dd_reactiondata(id,message)
     ddpdf = pandas.DataFrame.from_records(messages);
     if len(ddpdf.index) > 0:
       ddpdf['channel'] = id;
+      if 'type' not in ddpdf:
+        ddpdf['type'] = None;
       if 'subtype' not in ddpdf:
         ddpdf['subtype'] = None;
-      if 'reply_count' not in ddpdf:
-        ddpdf['reply_count'] = None;
+      if 'ts' not in ddpdf:
+        ddpdf['ts'] = None;
       if 'thread_ts' not in ddpdf:
         ddpdf['thread_ts'] = None;
+      if 'reply_count' not in ddpdf:
+        ddpdf['reply_count'] = None;
       if 'user' not in ddpdf:
         ddpdf['user'] = None;
       if 'text' not in ddpdf:
         ddpdf['text'] = None;
       ddpdf['time'] = ddpdf['ts'].apply(epochstr_to_isostr);
       ddpdf = ddpdf[['channel','type','subtype','ts','thread_ts','time','reply_count','user','text']];
-      dd_writefile(filename,ddpdf)
+      dd_writefile(master,filename,ddpdf)
   except Exception as err:
     print('Error - dd_messagedata')
     print(err)
@@ -139,12 +182,18 @@ def dd_threaddata(id,ts,result):
   try:
     messages = result['messages']
     for row in messages:
-      dd_reactiondata(row)
+      dd_reactiondata(id,row)
     ddpdf = pandas.DataFrame.from_records(messages);
     if len(ddpdf.index) > 0:
       ddpdf['channel'] = id;
+      if 'type' not in ddpdf:
+        ddpdf['type'] = None;
       if 'subtype' not in ddpdf:
         ddpdf['subtype'] = None;
+      if 'ts' not in ddpdf:
+        ddpdf['ts'] = None;
+      if 'thread_ts' not in ddpdf:
+        ddpdf['thread_ts'] = None;
       if 'user' not in ddpdf:
         ddpdf['user'] = None;
       if 'text' not in ddpdf:
@@ -152,24 +201,27 @@ def dd_threaddata(id,ts,result):
       ddpdf['time'] = ddpdf['ts'].apply(epochstr_to_isostr);
       ddpdf = ddpdf[['channel','type','subtype','ts','thread_ts','time','user','text']];
       # print(ddpdf);
-      dd_writefile(filename,ddpdf)
+      dd_writefile(master,filename,ddpdf)
   except Exception as err:
     print('Error')
     print(err)
 
-def dd_reactiondata(row):
+def dd_reactiondata(id,row):
   filename = "reaction_data";
   try:
     # print(row)
     if 'reactions' in row and row['reactions'] != None:
-      if not('thread_ts' in row) or row['ts'] != row['thread_ts']:
-        l = []
-        for reaction in row['reactions']:
-          for user in reaction['users']:
-            l.append({'reaction':str(reaction['name']), 'ts': str(row['ts']), 'user': user});
-        pdf = pandas.DataFrame.from_records(l);
-        if len(pdf.index) > 0:
-          dd_writefile(filename,pdf)
+      l = []
+      for reaction in row['reactions']:
+        for user in reaction['users']:
+          if 'thread_ts' in row:
+            thread_ts = row['thread_ts']
+          else:
+            thread_ts = ''
+          l.append({'channel':id, 'ts': str(row['ts']), 'thread_ts': str(thread_ts), 'user': user, 'reaction':str(reaction['name'])});
+      pdf = pandas.DataFrame.from_records(l);
+      if len(pdf.index) > 0:
+        dd_writefile(master,filename,pdf)
   except Exception as err:
     print('Error - dd_reactiondata')
     print(err)
@@ -185,7 +237,7 @@ def dd_filedata(result):
           lc.append({'id': row['id'], 'channel': channel, 'name': row['name'], 'time': epochstr_to_isostr(row['timestamp']), 'user': row['user']});
     print('files downloaded mapped to channels - '+str(len(lc)))
     pdf = pandas.DataFrame.from_records(lc);
-    dd_writefile(filename,pdf)
+    dd_writefile(master,filename,pdf)
   except Exception as err:
     print('Error')
     print(err)
@@ -211,7 +263,7 @@ def dd_polldata(id,result):
               vote = block['text']['text'].split('`');
               lc.append({'poll_id': poll_id, 'ts': message['ts'], 'time': epochstr_to_isostr(message['ts']), 'text': poll_text, 'vote_item': vote[0].strip(), 'vote_count': int(vote[1]) if len(vote) > 1 else 0 });
     pdf = pandas.DataFrame.from_records(lc);
-    dd_writefile(filename,pdf)
+    dd_writefile(master,filename,pdf)
   except Exception as err:
     print('Error - dd_polldata')
     print(err)
@@ -406,12 +458,120 @@ def convert_to_json():
     print('Error')
     print(err)
 
+def _merge_data(filename,index_cols,cols):
+  # for merging 
+  # - we will append new records
+  # - we will update existing records based upon key (just take the latest record even if it is the same)
+  # - we will not delete old records
+  try:
+    inpdf = dd_readfile(master,filename);
+    inpdf = inpdf.sort_values(index_cols);
+    print(inpdf);
+    mpdf = dd_readfile('master/csv',filename);
+    print(mpdf);
+    if mpdf.empty and inpdf.empty == False:
+      dd_writefile('master/csv',filename,inpdf);
+      print('initialising users dataset: '+str(len(inpdf)));
+    else:
+      mpdf = mpdf.sort_values(index_cols);
+      df = inpdf.merge(mpdf.drop_duplicates(), on=index_cols, how='left', indicator=True)
+      merged_cols = [];
+      merged_rename_cols = {};
+      for col in cols:
+        if col not in index_cols:
+          merged_cols.append(col+'_x'); 
+          merged_rename_cols[col+'_x'] = col;
+        else:
+          merged_cols.append(col); 
+          merged_rename_cols[col] = col;
+      insertpdf = df[df['_merge'] == 'left_only'];
+      insertpdf = insertpdf[merged_cols];
+      insertpdf = insertpdf.rename(columns=merged_rename_cols);
+      insertpdf = insertpdf.drop_duplicates();
+      insertpdf = insertpdf.sort_values(index_cols);
+      if insertpdf.empty == False:
+        dd_writefile(master,filename+'_insert',insertpdf);
+        print('adding users: '+str(len(insertpdf)));
+      updatepdf = df[df['_merge'] == 'both'];
+      updatepdf = updatepdf[merged_cols];
+      updatepdf = updatepdf.rename(columns=merged_rename_cols);
+      updatepdf = updatepdf.drop_duplicates();
+      updatepdf = updatepdf.sort_values(index_cols);
+      print(updatepdf);
+      if updatepdf.empty == False:
+        dd_writefile(master,filename+'_update',updatepdf);
+        print('updating users: '+str(len(updatepdf)));
+      deltapdf = insertpdf.append(updatepdf,ignore_index=False);
+      df = mpdf.merge(deltapdf.drop_duplicates(), on=index_cols, how='left', indicator=True)
+      unchangedpdf = df[df['_merge'] == 'left_only'];
+      unchangedpdf = unchangedpdf[merged_cols];
+      unchangedpdf = unchangedpdf.rename(columns=merged_rename_cols);
+      fullpdf = unchangedpdf.append(deltapdf,ignore_index=False);
+      fullpdf = fullpdf.drop_duplicates();
+      fullpdf = fullpdf.sort_values(index_cols);
+      if fullpdf.empty == False:
+        dd_backupfile(filename);
+        dd_writefile('master/csv',filename,fullpdf);
+        print('merging: '+str(len(fullpdf)));
+  except Exception as err:
+    print('Error')
+    print(err)
+
+def merge_userdata():
+  filename = 'user_data' 
+  cols = ['id','name','real_name','tz']
+  index_cols = ['id']
+  print('merging user dataset');
+  _merge_data(filename,index_cols,cols);
+
+def merge_channeldata():
+  filename = 'channel_data'
+  cols = ["id","name","type","class","is_archived","is_private"]
+  index_cols = ["id"]
+  print('merging channel dataset');
+  _merge_data(filename,index_cols,cols);
+
+def merge_messagedata():
+  filename = 'message_data'
+  cols = ["channel","type","subtype","ts","thread_ts","time","reply_count","user","text"]
+  index_cols = ["channel","ts"]
+  print('merging message dataset');
+  _merge_data(filename,index_cols,cols);
+
+def merge_threaddata():
+  filename = 'thread_data'
+  cols = ["channel","type","subtype","ts","thread_ts","time","user","text"]
+  index_cols = ["channel","ts"]
+  print('merging thread dataset');
+  _merge_data(filename,index_cols,cols);
+
+def merge_reactiondata():
+  filename = 'reaction_data'
+  cols = ["channel","ts","thread_ts","user","reaction"]
+  index_cols = ["ts"]
+  print('merging reaction dataset');
+  _merge_data(filename,index_cols,cols);
+
+def merge_filedata():
+  filename = 'file_data'
+  cols = ["id","channel","name","time","user"]
+  index_cols = ["id","channel"]
+  print('merging channel dataset');
+  _merge_data(filename,index_cols,cols);
+
+def merge_polldata():
+  filename = 'poll_data'
+  cols = ["poll_id","ts","time","text","vote_item","vote_count"]
+  index_cols = ["poll_id","vote_item"]
+  print('merging channel dataset');
+  _merge_data(filename,index_cols,cols);
+
 def create_conversationdata():
   filename = "conversation_data";
   try:
-    message_pdf = dd_readfile('message_data');
-    user_pdf = dd_readfile('user_data');
-    thread_pdf = dd_readfile('thread_data');
+    message_pdf = dd_readfile(master,'message_data');
+    user_pdf = dd_readfile(master,'user_data');
+    thread_pdf = dd_readfile(master,'thread_data');
 
     zone_ref_pdf = dd_readref('zone');
     country_ref_pdf = dd_readref('country');
@@ -442,7 +602,7 @@ def create_conversationdata():
     # Rename columns
     ddpdf = conversation_pdf.rename(columns={'channel':'CHANNEL','type':'TYPE','subtype':'SUBTYPE','ts':'TS','thread_ts':'THREAD_TS','ts_int':'TS_INT','time':'TIME','user':'USER','real_name':'REAL_NAME','name':'NAME','text':'TEXT','city':'CITY','COUNTRY':'COUNTRY','ISO':'ISO'});
 
-    dd_writefile(filename,ddpdf);
+    dd_writefile(metrics,filename,ddpdf);
   except Exception as err:
     print('Error');
     print(err);
@@ -450,8 +610,8 @@ def create_conversationdata():
 def create_nodedata():
   filename = "node_data";
   try:
-    channel_pdf = dd_readfile('channel_data');
-    user_pdf = dd_readfile('user_data');
+    channel_pdf = dd_readfile(master,'channel_data');
+    user_pdf = dd_readfile(master,'user_data');
 
     zone_ref_pdf = dd_readref('zone');
     country_ref_pdf = dd_readref('country');
@@ -489,7 +649,7 @@ def create_nodedata():
     # Rename columns
     ddpdf = ddpdf.rename(columns={'id':'ID','name':'LABEL','type':'TYPE','real_name':'NAME','ISO':'ISO','COUNTRY':'COUNTRY','city':'CITY','channel_type':'CHANNEL_TYPE','channel_class':'CHANNEL_CLASS'});
 
-    dd_writefile(filename,ddpdf);
+    dd_writefile(metrics,filename,ddpdf);
   except Exception as err:
     print('Error');
     print(err);
@@ -497,10 +657,9 @@ def create_nodedata():
 def create_edgedata():
   filename = "edge_data";
   try:
-    conversation_pdf = dd_readfile('conversation_data');
+    conversation_pdf = dd_readfile(metrics,'conversation_data');
     c1_pdf = conversation_pdf.copy();
-    reaction_pdf = dd_readfile('reaction_data');
-    # c1_pdf = c1_pdf[c1_pdf['SUBTYPE'] == 'thread_broadcast' or c1_pdf['SUBTYPE'] == None];
+    reaction_pdf = dd_readfile(master,'reaction_data');
     c1_pdf_1 = c1_pdf[c1_pdf['SUBTYPE'] == 'thread_broadcast'];
     c1_pdf_2 = c1_pdf[c1_pdf['SUBTYPE'].isnull()];
     c1_pdf = c1_pdf_1.append(c1_pdf_2,ignore_index=False);
@@ -516,51 +675,51 @@ def create_edgedata():
     # print(c4_pdf.shape);
     c3_pdf = c1_pdf.copy();
     c5_pdf = c3_pdf.merge(reaction_pdf,how='left',left_on='TS',right_on='ts');
+    c5_pdf = c5_pdf[c5_pdf['user'].notnull()];
     c5_pdf = c5_pdf[['CHANNEL','USER','user']];
     c5_pdf['RELATE'] = 'reacts';
     c5_pdf = c5_pdf.rename(columns={'CHANNEL':'CHANNEL','USER':'SOURCE','user':'TARGET','RELATE':'RELATE'});
-    # print(c5_pdf.shape);
+    print(c5_pdf.shape);
     ddpdf = c4_pdf.append(c5_pdf,ignore_index=True);
     # print(ddpdf);
 
-    dd_writefile(filename,ddpdf);
+    dd_writefile(metrics,filename,ddpdf);
   except Exception as err:
     print('Error');
     print(err);
 
 def aggregate_conversationdata():
   try:
-    channel_pdf = dd_readfile('channel_data');
-    user_pdf = dd_readfile('user_data');
+    channel_pdf = dd_readfile(master,'channel_data');
+    user_pdf = dd_readfile(master,'user_data');
 
-    c1_pdf = dd_readfile('conversation_data');
+    c1_pdf = dd_readfile(metrics,'conversation_data');
     c1_pdf_1 = c1_pdf[c1_pdf['SUBTYPE'] == 'thread_broadcast'];
     c1_pdf_2 = c1_pdf[c1_pdf['SUBTYPE'].isnull()];
     c1_pdf = c1_pdf_1.append(c1_pdf_2,ignore_index=False);
     agg_pdf = c1_pdf.groupby('CHANNEL').count()[['TS','THREAD_TS']];
     # print(agg_pdf);
-    dd_writefile('aggr_by_channel',agg_pdf,True);
+    dd_writefile(metrics,'aggr_by_channel',agg_pdf,True);
     agg_pdf = c1_pdf.groupby(['CHANNEL','USER']).count()[['TS','THREAD_TS']];
-    agg_pdf['POSTS'] = agg_pdf['TS'] + agg_pdf['THREAD_TS'];
     # print(agg_pdf);
-    dd_writefile('aggr_by_channel_user',agg_pdf,True);
+    dd_writefile(metrics,'aggr_by_channel_user',agg_pdf,True);
     unique_pdf = agg_pdf.copy();
     unique_pdf.reset_index(inplace=True);
     unique_pdf = unique_pdf.groupby(['CHANNEL']).count()[['USER']];
     print(unique_pdf);
-    dd_writefile('number_channel_user',unique_pdf,True);
-    max_pdf = agg_pdf.groupby(['CHANNEL']).max()[['POSTS']];
+    dd_writefile(metrics,'number_channel_user',unique_pdf,True);
+    max_pdf = agg_pdf.groupby(['CHANNEL']).max()[['TS']];
     # print(max_pdf);
     m1_pdf = agg_pdf.merge(max_pdf,how='inner',left_index=True,right_index=True);
-    m1_pdf = m1_pdf[m1_pdf['POSTS_x'] == m1_pdf['POSTS_y']];
+    m1_pdf = m1_pdf[m1_pdf['TS_x'] == m1_pdf['TS_y']];
     print(m1_pdf);
     m1_pdf.reset_index(inplace=True);
     m2_pdf = m1_pdf.merge(user_pdf,how='left',right_on='id',left_on='USER');
     m3_pdf = m2_pdf.merge(channel_pdf,how='left',right_on='id',left_on='CHANNEL');
-    m4_pdf = m3_pdf[['CHANNEL','name_y','USER','real_name','POSTS_x']];
-    m4_pdf = m4_pdf.rename(columns={'CHANNEL':'CHANNEL_ID','name_y':'CHANNEL_NAME','USER':'USER_ID','real_name':'USER_NAME','POSTS_x':'POSTS'});
+    m4_pdf = m3_pdf[['CHANNEL','name_y','USER','real_name','TS_x']];
+    m4_pdf = m4_pdf.rename(columns={'CHANNEL':'CHANNEL_ID','name_y':'CHANNEL_NAME','USER':'USER_ID','real_name':'USER_NAME','TS_x':'TS'});
     # print(m4_pdf);
-    dd_writefile('max_by_channel_user',m4_pdf);
+    dd_writefile(metrics,'max_by_channel_user',m4_pdf);
   except Exception as err:
     print('Error');
     print(err);
@@ -568,7 +727,7 @@ def aggregate_conversationdata():
 def create_timediff_conversations():
   filename = "conversation_timediff_data";
   try:
-    df = dd_readfile('conversation_data');
+    df = dd_readfile(metrics,'conversation_data');
     df = df.sort_values(['CHANNEL','TS'],ascending=(True,True));
     df['TIME_TS'] = pandas.to_datetime(df['TIME']);
     # print(df);
@@ -587,7 +746,7 @@ def create_timediff_conversations():
     ddpdf = ddpdf.rename(columns={'TIME_TS_y':'DIFF'});
     # print(ddpdf);
     # print(ddpdf.dtypes);
-    dd_writefile(filename,ddpdf);
+    dd_writefile(metrics,filename,ddpdf);
   except Exception as err:
     print('Error');
     print(err);
@@ -595,7 +754,7 @@ def create_timediff_conversations():
 def create_timediff_threads():
   filename = "threads_timediff_data";
   try:
-    df = dd_readfile('conversation_data');
+    df = dd_readfile(metrics,'conversation_data');
     df = df[df['THREAD_TS'].notnull()];
     df = df.sort_values(['CHANNEL','THREAD_TS','TS'],ascending=(True,True,True));
     df['TIME_TS'] = pandas.to_datetime(df['TIME']);
@@ -615,7 +774,7 @@ def create_timediff_threads():
     ddpdf = ddpdf.rename(columns={'TIME_TS_y':'DIFF'});
     # print(ddpdf);
     # print(ddpdf.dtypes);
-    dd_writefile(filename,ddpdf);
+    dd_writefile(metrics,filename,ddpdf);
   except Exception as err:
     print('Error');
     print(err);
@@ -623,16 +782,16 @@ def create_timediff_threads():
 def aggregate_threads():
   filename = "length_threads_data";
   try:
-    df = dd_readfile('conversation_data');
+    df = dd_readfile(metrics,'conversation_data');
     df = df[df['THREAD_TS'].notnull()];
     ddf = df.groupby(['CHANNEL','THREAD_TS']).count()[['TS']];
     ddf.reset_index(inplace=True);
     print(ddf);
-    dd_writefile('aggr_by_thread',ddf);
+    dd_writefile(metrics,'aggr_by_thread',ddf);
     ddf = df.groupby(['CHANNEL','THREAD_TS','USER']).count()[['TS']];
     ddf.reset_index(inplace=True);
     print(ddf);
-    dd_writefile('aggr_by_thread_user',ddf);
+    dd_writefile(metrics,'aggr_by_thread_user',ddf);
   except Exception as err:
     print('Error');
     print(err);
@@ -640,7 +799,8 @@ def aggregate_threads():
 print('this was executed with batch number '+batch);
 
 def exec_stages():
-  if stage == None or stage == 1:
+  dd_makedirs();
+  if master != 'master' and (stage == None or stage == 1):
     print('Stage 1 - TRANSFORM / LOAD (INTO CSV AND JSON)');
     try:
       print('transform and load user data');
@@ -658,8 +818,25 @@ def exec_stages():
   else:
     print('skipping Stage 1');
 
-  if stage == None or stage <= 2:
-    print('Stage 2 - CREATE ANALYSIS');
+  if master != 'master' and (stage == None or stage <= 2):
+    print('Stage 2 - Merge Data');
+    try:
+      merge_userdata();
+      merge_channeldata();
+      merge_messagedata();
+      merge_threaddata();
+      merge_reactiondata();
+      merge_filedata();
+      merge_polldata();
+      print("");
+    except Exception as err:
+      print(err)
+      exit(-1);
+  else:
+    print('skipping Stage 2');
+
+  if stage == None or stage <= 3:
+    print('Stage 3 - CREATE ANALYSIS');
     try:
       create_conversationdata();
       create_timediff_conversations();
@@ -670,10 +847,10 @@ def exec_stages():
       print(err)
       exit(-1);
   else:
-    print('skipping Stage 2');
+    print('skipping Stage 3');
 
-  if stage == None or stage <= 3:
-    print('Stage 3 - CREATE AGGREGATES');
+  if stage == None or stage <= 4:
+    print('Stage 4 - CREATE AGGREGATES');
     try:
       aggregate_conversationdata();
       aggregate_threads();
@@ -682,7 +859,7 @@ def exec_stages():
       print(err)
       exit(-1);
   else:
-    print('skipping Stage 3');
+    print('skipping Stage 4');
   
 exec_stages();
 

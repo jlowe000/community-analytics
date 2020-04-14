@@ -44,6 +44,11 @@
 * Added in json output translation - raw /api has been saved as Python object format (which is not JSON).
 * Added channel mapping to unique users into aggregations
 
+**v0.9**
+* Added merge into a master dataset (to cover how slack restricts the number of message hence losing data).
+* Refined structure around metrics and raw data
+* Refined zip structure to separate the raw data (from the APIs, Files and JSON representations) from the metrics (conversations, aggregations, statistics)
+
 ## TODO
 
 **Future things to consider**

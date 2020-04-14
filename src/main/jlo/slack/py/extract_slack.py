@@ -39,6 +39,7 @@ batch = batchtime.strftime('%Y%m%d%H%M%S')
 def dd_writemetadata():
   os.makedirs('data/'+batch+'/api');
   os.makedirs('data/'+batch+'/csv');
+  os.makedirs('data/'+batch+'/metrics');
   os.makedirs('data/'+batch+'/json');
   os.makedirs('data/'+batch+'/metadata');
   f = open('data/'+batch+'/metadata/metadata.csv','a');
@@ -140,9 +141,9 @@ def retrieve_userdata():
       except Exception as err:
         cursor = ''
         print('metadata not found');
-      loop = result['has_more'];
+      if cursor == '':
+        loop = False
       print('cursor:'+cursor);
-      print('loop:'+str(loop));
   except Exception as err:
     print('Error')
     print(err)
@@ -173,9 +174,9 @@ def retrieve_channeldata():
       except Exception as err:
         cursor = ''
         print('metadata not found');
-      loop = result['has_more'];
+      if cursor == '':
+        loop = False
       print('cursor:'+cursor);
-      print('loop:'+str(loop));
   except Exception as err:
     print('Error')
     print(err)
@@ -208,9 +209,9 @@ def retrieve_threads(id,ts,to_filter):
       except Exception as err:
         cursor = ''
         print('metadata not found');
-      loop = result['has_more'];
+      if cursor == '':
+        loop = False
       print('cursor:'+cursor);
-      print('loop:'+str(loop));
   except Exception as err:
     print('Error')
     print(err)
@@ -244,9 +245,9 @@ def retrieve_messages(id,to_filter):
       except Exception as err:
         cursor = ''
         print('metadata not found');
-      loop = result['has_more'];
+      if cursor == '':
+        loop = False
       print('cursor:'+cursor);
-      print('loop:'+str(loop));
   except Exception as err:
     print('Error')
     print(err)
