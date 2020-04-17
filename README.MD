@@ -49,6 +49,10 @@
 * Refined structure around metrics and raw data
 * Refined zip structure to separate the raw data (from the APIs, Files and JSON representations) from the metrics (conversations, aggregations, statistics)
 
+**v1.0**
+* Added tag references from the text (and extracting users, channels and links)
+* Added timediff for user interactions.
+
 ## TODO
 
 **Future things to consider**
