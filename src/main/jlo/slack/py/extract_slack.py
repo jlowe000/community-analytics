@@ -42,13 +42,13 @@ def dd_writemetadata():
   os.makedirs('data/'+batch+'/metrics');
   os.makedirs('data/'+batch+'/json');
   os.makedirs('data/'+batch+'/metadata');
-  f = open('data/'+batch+'/metadata/metadata.csv','a');
+  f = open('data/'+batch+'/metadata/metadata.csv','a',encoding='utf-8');
   f.write('"time"\n"'+batchtime.isoformat(timespec='seconds')+'"\n');
   f.close();
 
 def dd_writejson(filename,key,result):
   current_time = floor(datetime.now().timestamp()*1000000)
-  f = open('data/'+batch+'/api/'+filename+'-'+key+'-'+str(current_time)+'.json','a');
+  f = open('data/'+batch+'/api/'+filename+'-'+key+'-'+str(current_time)+'.json','a',encoding='utf-8');
   f.write(str(result));
   f.close();
 

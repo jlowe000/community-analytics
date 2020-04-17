@@ -10,6 +10,7 @@ import glob
 import sys
 import json
 import itertools
+import hashlib
 from functools import reduce
 from math import floor
 from datetime import datetime
@@ -74,12 +75,12 @@ def dd_backupfile(filename):
   os.rename('data/master/csv/'+filename+'.csv','data/master/csv/'+filename+'-'+batch+'.csv')
 
 def dd_writefile(key,filename,pdf,index=False):
-  with open('data/'+key+'/'+filename+'.csv','a') as f:
+  with open('data/'+key+'/'+filename+'.csv','a',encoding='utf-8') as f:
     pdf.to_csv(f,index=index,quoting=csv.QUOTE_ALL,mode='a',header=f.tell()==0);
 
 def dd_readfile(key,filename):
   try:
-    pdf = pandas.read_csv('data/'+key+'/'+filename+'.csv',dtype={'TS':str,'THREAD_TS':str,'ts':str,'thread_ts':str});
+    pdf = pandas.read_csv('data/'+key+'/'+filename+'.csv',dtype={'TS':str,'THREAD_TS':str,'ts':str,'thread_ts':str},encoding='utf-8');
     return pdf;
   except Exception as err:
     print(err);
@@ -87,7 +88,7 @@ def dd_readfile(key,filename):
 
 def dd_readref(filename):
   try:
-    pdf = pandas.read_csv('../../../../../data/'+filename+'.csv');
+    pdf = pandas.read_csv('../../../../../data/'+filename+'.csv',encoding='utf-8');
     return pdf;
   except Exception as err:
     print(err);
@@ -660,6 +661,7 @@ def create_edgedata():
     conversation_pdf = dd_readfile(metrics,'conversation_data');
     c1_pdf = conversation_pdf.copy();
     reaction_pdf = dd_readfile(master,'reaction_data');
+    tag_pdf = dd_readfile(metrics,'tag_data');
     c1_pdf_1 = c1_pdf[c1_pdf['SUBTYPE'] == 'thread_broadcast'];
     c1_pdf_2 = c1_pdf[c1_pdf['SUBTYPE'].isnull()];
     c1_pdf = c1_pdf_1.append(c1_pdf_2,ignore_index=False);
@@ -679,9 +681,19 @@ def create_edgedata():
     c5_pdf = c5_pdf[['CHANNEL','USER','user']];
     c5_pdf['RELATE'] = 'reacts';
     c5_pdf = c5_pdf.rename(columns={'CHANNEL':'CHANNEL','USER':'SOURCE','user':'TARGET','RELATE':'RELATE'});
-    print(c5_pdf.shape);
+    # print(c5_pdf.shape);
+    c6_pdf = c1_pdf.copy();
+    c6_pdf = c6_pdf.merge(tag_pdf,how='left',on='TS');
+    c6_pdf = c6_pdf[c6_pdf['USER'].notnull()];
+    c6_pdf = c6_pdf[c6_pdf['TYPE_y'] == 'user'];
+    c6_pdf = c6_pdf[['CHANNEL_x','USER','TAG']];
+    c6_pdf['RELATE'] = 'refers';
+    c6_pdf = c6_pdf.rename(columns={'CHANNEL_x':'CHANNEL','USER':'SOURCE','TAG':'TARGET','RELATE':'RELATE'});
+    # print(c6_pdf.shape);
+    # print(c6_pdf);
     ddpdf = c4_pdf.append(c5_pdf,ignore_index=True);
-    # print(ddpdf);
+    ddpdf = ddpdf.append(c6_pdf,ignore_index=True);
+    print(ddpdf);
 
     dd_writefile(metrics,filename,ddpdf);
   except Exception as err:
@@ -735,7 +747,7 @@ def create_timediff_conversations():
     # print(ddf);
     # print(ddf.dtypes);
     ddf = ddf.groupby('CHANNEL').diff();
-    ddf['TIME_TS'] = ddf['TIME_TS']  / numpy.timedelta64(1, 's');
+    ddf['TIME_TS'] = ddf['TIME_TS'] / numpy.timedelta64(1, 's');
     ddf['TIME_TS'] = ddf['TIME_TS'].mask(pandas.isnull, 0);
     # print(ddf);
     # print(ddf.dtypes);
@@ -763,7 +775,35 @@ def create_timediff_threads():
     # print(ddf);
     # print(ddf.dtypes);
     ddf = ddf.groupby(['CHANNEL','THREAD_TS']).diff();
-    ddf['TIME_TS'] = ddf['TIME_TS']  / numpy.timedelta64(1, 's');
+    ddf['TIME_TS'] = ddf['TIME_TS'] / numpy.timedelta64(1, 's');
+    ddf['TIME_TS'] = ddf['TIME_TS'].mask(pandas.isnull, 0);
+    # print(ddf);
+    # print(ddf.dtypes);
+    df = df.merge(ddf,left_index=True,right_index=True);
+    # print(df);
+    # print(df.dtypes);
+    ddpdf = df[['CHANNEL','TYPE','SUBTYPE','TS','THREAD_TS','TS_INT','TIME','USER','REAL_NAME','NAME','TEXT','CITY','COUNTRY','ISO','TIME_TS_y']];
+    ddpdf = ddpdf.rename(columns={'TIME_TS_y':'DIFF'});
+    # print(ddpdf);
+    # print(ddpdf.dtypes);
+    dd_writefile(metrics,filename,ddpdf);
+  except Exception as err:
+    print('Error');
+    print(err);
+
+def create_timediff_users():
+  filename = "users_timediff_data";
+  try:
+    df = dd_readfile(metrics,'conversation_data');
+    df = df[df['THREAD_TS'].notnull()];
+    df = df.sort_values(['USER','TS'],ascending=(True,True));
+    df['TIME_TS'] = pandas.to_datetime(df['TIME']);
+    # print(df);
+    ddf = df[['USER','TIME_TS']];
+    # print(ddf);
+    # print(ddf.dtypes);
+    ddf = ddf.groupby(['USER']).diff();
+    ddf['TIME_TS'] = ddf['TIME_TS'] / numpy.timedelta64(1, 's');
     ddf['TIME_TS'] = ddf['TIME_TS'].mask(pandas.isnull, 0);
     # print(ddf);
     # print(ddf.dtypes);
@@ -792,6 +832,51 @@ def aggregate_threads():
     ddf.reset_index(inplace=True);
     print(ddf);
     dd_writefile(metrics,'aggr_by_thread_user',ddf);
+  except Exception as err:
+    print('Error');
+    print(err);
+
+def extract_tags():
+  filename = "tag_data";
+  try:
+    df = dd_readfile(metrics,'conversation_data');
+    udf = dd_readfile(master,'user_data');
+    df_1 = df[df['SUBTYPE'] == 'thread_broadcast'];
+    df_2 = df[df['SUBTYPE'].isnull()];
+    df = df_1.append(df_2,ignore_index=True);
+    df = df[['CHANNEL','TS','TEXT']];
+    df = df[df['TEXT'].notnull()];
+    df = df.set_index('TS');
+    utdf = df['TEXT'].str.extractall(r'<@(?P<TAG>.*?)>');
+    utdf['TYPE'] = 'user';
+    utdf.reset_index(inplace=True);
+    utdf = utdf.merge(udf,how='left',left_on='TAG',right_on='id');
+    utdf = utdf.rename(columns={'real_name':'NICE_TAG'});
+    utdf.reset_index(inplace=True);
+    utdf = utdf[['TS','TAG','NICE_TAG','TYPE']];
+    ctdf = df['TEXT'].str.extractall(r'<#(?P<TAG>.*?)>');
+    ctdf = ctdf['TAG'].str.split('|',expand=True)
+    ctdf['TYPE'] = 'channel';
+    ctdf = ctdf.rename(columns={0:'TAG',1:'NICE_TAG'});
+    ctdf.reset_index(inplace=True);
+    ctdf = ctdf[['TS','TAG','NICE_TAG','TYPE']];
+    ltdf = df['TEXT'].str.extractall(r'<(?P<TAG>.*?)>');
+    ltdf = ltdf[ltdf['TAG'].str.contains('^[^@#]')];
+    ltdf = ltdf['TAG'].str.split('|',expand=True)
+    ltdf = ltdf.rename(columns={0:'TAG',1:'NICE_TAG'});
+    ltdf['TYPE'] = 'link';
+    ltdf.reset_index(inplace=True);
+    ltdf = ltdf[['TS','TAG','NICE_TAG','TYPE']];
+    df.reset_index(inplace=True);
+    print(utdf);
+    print(ctdf);
+    print(ltdf);
+    tdf = pandas.concat([utdf,ctdf,ltdf],ignore_index=True)
+    print(tdf);
+    ddf = df.merge(tdf,how='right',on='TS');
+    ddf = ddf[['CHANNEL','TS','TAG','NICE_TAG','TYPE']];
+    print(ddf);
+    dd_writefile(metrics,filename,ddf);
   except Exception as err:
     print('Error');
     print(err);
@@ -840,6 +925,9 @@ def exec_stages():
     try:
       create_conversationdata();
       create_timediff_conversations();
+      create_timediff_threads();
+      create_timediff_user();
+      extract_tags();
       create_nodedata();
       create_edgedata();
       print("");
@@ -860,6 +948,5 @@ def exec_stages():
       exit(-1);
   else:
     print('skipping Stage 4');
-  
-exec_stages();
 
+exec_stages();
