@@ -15,34 +15,13 @@ from functools import reduce
 from math import floor
 from datetime import datetime
 
-sign_token = os.environ['SLACK_SIGN_TOKEN']
-access_token = os.environ['SLACK_ACCESS_TOKEN']
-user_token = os.environ['SLACK_USER_TOKEN']
-# user_token = 'SLACK_USER_TOKEN'  
-
-# ssl_context = ssl.create_default_context(cafile=certifi.where())
-
 master = 'master/csv'
 metrics = 'metrics/csv'
 batch = None
 stage = None
-if len(sys.argv) >= 2:
-  batch = sys.argv[1]
-  master = batch+'/csv'
-  metrics = batch+'/metrics'
-else:
-  batch = 'master'
-if len(sys.argv) >= 3:
-  stage = int(sys.argv[2])
-
-if batch == None:
-  print('no batch id provided');
-  exit(-1);
-if stage == None:
-  print('run all stages');
-if batch == 'master':
-  print('creating master metrics');
-  stage = 3
+sign_token = None
+access_token = None
+user_token = None
 
 def dd_makedirs():
   try:
@@ -797,6 +776,7 @@ def create_timediff_users():
     df = dd_readfile(metrics,'conversation_data');
     df = df[df['THREAD_TS'].notnull()];
     df = df.sort_values(['USER','TS'],ascending=(True,True));
+    df['USER_HASH'] = df['USER'].apply(hash);
     df['TIME_TS'] = pandas.to_datetime(df['TIME']);
     # print(df);
     ddf = df[['USER','TIME_TS']];
@@ -810,7 +790,7 @@ def create_timediff_users():
     df = df.merge(ddf,left_index=True,right_index=True);
     # print(df);
     # print(df.dtypes);
-    ddpdf = df[['CHANNEL','TYPE','SUBTYPE','TS','THREAD_TS','TS_INT','TIME','USER','REAL_NAME','NAME','TEXT','CITY','COUNTRY','ISO','TIME_TS_y']];
+    ddpdf = df[['CHANNEL','TYPE','SUBTYPE','TS','THREAD_TS','TS_INT','TIME','USER','USER_HASH','REAL_NAME','NAME','TEXT','CITY','COUNTRY','ISO','TIME_TS_y']];
     ddpdf = ddpdf.rename(columns={'TIME_TS_y':'DIFF'});
     # print(ddpdf);
     # print(ddpdf.dtypes);
@@ -881,8 +861,6 @@ def extract_tags():
     print('Error');
     print(err);
 
-print('this was executed with batch number '+batch);
-
 def exec_stages():
   dd_makedirs();
   if master != 'master' and (stage == None or stage == 1):
@@ -926,7 +904,7 @@ def exec_stages():
       create_conversationdata();
       create_timediff_conversations();
       create_timediff_threads();
-      create_timediff_user();
+      create_timediff_users();
       extract_tags();
       create_nodedata();
       create_edgedata();
@@ -949,4 +927,36 @@ def exec_stages():
   else:
     print('skipping Stage 4');
 
-exec_stages();
+if __name__ == "__main__":
+  try:
+    sign_token = os.environ['SLACK_SIGN_TOKEN']
+    access_token = os.environ['SLACK_ACCESS_TOKEN']
+    user_token = os.environ['SLACK_USER_TOKEN']
+    # user_token = 'SLACK_USER_TOKEN'  
+  except:
+    print('no tokens available')
+
+  # ssl_context = ssl.create_default_context(cafile=certifi.where())
+
+  if len(sys.argv) >= 2:
+    batch = sys.argv[1]
+    master = batch+'/csv'
+    metrics = batch+'/metrics'
+  else:
+    batch = 'master'
+  if len(sys.argv) >= 3:
+    stage = int(sys.argv[2])
+
+  if batch == None:
+    print('no batch id provided');
+    exit(-1);
+  if stage == None:
+    print('run all stages');
+  if batch == 'master':
+    print('creating master metrics');
+    stage = 3
+
+  print('this was executed with batch number '+batch);
+
+  # exec_stages();
+
