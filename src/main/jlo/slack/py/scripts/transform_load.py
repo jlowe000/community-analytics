@@ -22,26 +22,27 @@ stage = None
 sign_token = None
 access_token = None
 user_token = None
+data_home = None
 
 def dd_makedirs():
   try:
-    os.makedirs('data/'+batch+'/api');
+    os.makedirs(data_home+'/'+batch+'/api');
   except Exception:
     print("/api exists");
   try:
-    os.makedirs('data/'+batch+'/csv');
+    os.makedirs(data_home+'/'+batch+'/csv');
   except Exception:
     print("/csv exists");
   try:
-    os.makedirs('data/'+batch+'/metrics');
+    os.makedirs(data_home+'/'+batch+'/metrics');
   except Exception:
     print("/metrics exists");
   try:
-    os.makedirs('data/'+batch+'/json');
+    os.makedirs(data_home+'/'+batch+'/json');
   except Exception:
     print("/json exists");
   try:
-    os.makedirs('data/'+batch+'/metadata');
+    os.makedirs(data_home+'/'+batch+'/metadata');
   except Exception:
     print("/metadata exists");
 
@@ -51,15 +52,15 @@ def sortfile_key(file):
 def dd_backupfile(filename):
   backuptime = datetime.now().strftime('%Y%m%d%H%M%S')
   # move file to a backup
-  os.rename('data/master/csv/'+filename+'.csv','data/master/csv/'+filename+'-'+batch+'.csv')
+  os.rename(data_home+'/master/csv/'+filename+'.csv',data_home+'/master/csv/'+filename+'-'+batch+'.csv')
 
 def dd_writefile(key,filename,pdf,index=False):
-  with open('data/'+key+'/'+filename+'.csv','a',encoding='utf-8') as f:
+  with open(data_home+'/'+key+'/'+filename+'.csv','a',encoding='utf-8') as f:
     pdf.to_csv(f,index=index,quoting=csv.QUOTE_ALL,mode='a',header=f.tell()==0);
 
 def dd_readfile(key,filename):
   try:
-    pdf = pandas.read_csv('data/'+key+'/'+filename+'.csv',dtype={'TS':str,'THREAD_TS':str,'ts':str,'thread_ts':str},encoding='utf-8');
+    pdf = pandas.read_csv(data_home+'/'+key+'/'+filename+'.csv',dtype={'TS':str,'THREAD_TS':str,'ts':str,'thread_ts':str},encoding='utf-8');
     return pdf;
   except Exception as err:
     print(err);
@@ -67,7 +68,7 @@ def dd_readfile(key,filename):
 
 def dd_readref(filename):
   try:
-    pdf = pandas.read_csv('../../../../../data/'+filename+'.csv',encoding='utf-8');
+    pdf = pandas.read_csv(data_home+'/references/'+filename+'.csv',encoding='utf-8');
     return pdf;
   except Exception as err:
     print(err);
@@ -251,7 +252,7 @@ def dd_polldata(id,result):
 def retrieve_userdata():
   try:
     loop = True;
-    files = glob.glob('data/'+batch+'/api/user_list*.json')
+    files = glob.glob(data_home+'/'+batch+'/api/user_list*.json')
     for file in files:
       print('retrieving user_data - '+file);
       a = 0;
@@ -276,7 +277,7 @@ def retrieve_userdata():
 def retrieve_channeldata():
   try:
     loop = True;
-    files = glob.glob('data/'+batch+'/api/conversation_list*.json')
+    files = glob.glob(data_home+'/'+batch+'/api/conversation_list*.json')
     files.sort(key = sortfile_key)
     # assuming it is in order of "filename" - though there are conflicting messages
     for file in files:
@@ -303,7 +304,7 @@ def retrieve_channeldata():
 def retrieve_messages(id):
   try:
     loop = True;
-    files = glob.glob('data/'+batch+'/api/conversation_history-'+id+'*.json')
+    files = glob.glob(data_home+'/'+batch+'/api/conversation_history-'+id+'*.json')
     files.sort(key = sortfile_key)
     for file in files:
       print('retrieving message_data for channel: '+id+' '+file);
@@ -329,7 +330,7 @@ def retrieve_messages(id):
 def retrieve_threads(id,ts):
   try:
     loop = True;
-    files = glob.glob('data/'+batch+'/api/conversation_replies-'+id+'_'+ts+'*.json')
+    files = glob.glob(data_home+'/'+batch+'/api/conversation_replies-'+id+'_'+ts+'*.json')
     files.sort(key = sortfile_key)
     for file in files:
       print('retrieving thread_data for message:'+id+' '+ts+' '+file);
@@ -355,7 +356,7 @@ def retrieve_threads(id,ts):
 def retrieve_filedata():
   try:
     loop = True;
-    files = glob.glob('data/'+batch+'/api/files_list-*.json')
+    files = glob.glob(data_home+'/'+batch+'/api/files_list-*.json')
     files.sort(key = sortfile_key)
     for file in files:
       print('retrieving file_data: '+file);
@@ -381,7 +382,7 @@ def retrieve_filedata():
 def retrieve_polldata(botid):
   try:
     loop = True;
-    files = glob.glob('data/'+batch+'/api/conversation_history-C010VKAQ96V*.json')
+    files = glob.glob(data_home+'/'+batch+'/api/conversation_history-C010VKAQ96V*.json')
     files.sort(key = sortfile_key)
     for file in files:
       print('retrieving poll_data for channel: '+botid+' '+file);
@@ -408,10 +409,10 @@ def convert_to_json():
   try:
     loop = True;
     try:
-      os.makedirs('data/'+batch+'/json');
+      os.makedirs(data_home+'/'+batch+'/json');
     except Exception as err:
       print('directory exists');
-    files = glob.glob('data/'+batch+'/api/*.json')
+    files = glob.glob(data_home+'/'+batch+'/api/*.json')
     for file in files:
       print('retrieving file_data: '+file);
       a = 0;
@@ -933,8 +934,10 @@ if __name__ == "__main__":
     access_token = os.environ['SLACK_ACCESS_TOKEN']
     user_token = os.environ['SLACK_USER_TOKEN']
     # user_token = 'SLACK_USER_TOKEN'  
+    data_home = os.environ['SLACK_DATA_HOME']
   except:
     print('no tokens available')
+    data_home = "."
 
   # ssl_context = ssl.create_default_context(cafile=certifi.where())
 
@@ -958,5 +961,5 @@ if __name__ == "__main__":
 
   print('this was executed with batch number '+batch);
 
-  # exec_stages();
+  exec_stages();
 

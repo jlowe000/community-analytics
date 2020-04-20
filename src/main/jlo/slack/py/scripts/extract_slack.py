@@ -26,6 +26,7 @@ sign_token = os.environ['SLACK_SIGN_TOKEN']
 access_token = os.environ['SLACK_ACCESS_TOKEN']
 user_token = os.environ['SLACK_USER_TOKEN']
 # user_token = 'SLACK_USER_TOKEN'  
+data_home = os.environ['SLACK_DATA_HOME']
 
 ssl_context = ssl.create_default_context(cafile=certifi.where())
 client = slack.WebClient(token=access_token,ssl=ssl_context)
@@ -37,18 +38,18 @@ batchtime = datetime.now();
 batch = batchtime.strftime('%Y%m%d%H%M%S')
 
 def dd_writemetadata():
-  os.makedirs('data/'+batch+'/api');
-  os.makedirs('data/'+batch+'/csv');
-  os.makedirs('data/'+batch+'/metrics');
-  os.makedirs('data/'+batch+'/json');
-  os.makedirs('data/'+batch+'/metadata');
-  f = open('data/'+batch+'/metadata/metadata.csv','a',encoding='utf-8');
+  os.makedirs(data_home+'/'+batch+'/api');
+  os.makedirs(data_home+'/'+batch+'/csv');
+  os.makedirs(data_home+'/'+batch+'/metrics');
+  os.makedirs(data_home+'/'+batch+'/json');
+  os.makedirs(data_home+'/'+batch+'/metadata');
+  f = open(data_home+'/'+batch+'/metadata/metadata.csv','a',encoding='utf-8');
   f.write('"time"\n"'+batchtime.isoformat(timespec='seconds')+'"\n');
   f.close();
 
 def dd_writejson(filename,key,result):
   current_time = floor(datetime.now().timestamp()*1000000)
-  f = open('data/'+batch+'/api/'+filename+'-'+key+'-'+str(current_time)+'.json','a',encoding='utf-8');
+  f = open(data_home+'/'+batch+'/api/'+filename+'-'+key+'-'+str(current_time)+'.json','a',encoding='utf-8');
   f.write(str(result));
   f.close();
 
@@ -92,8 +93,8 @@ def parse_filedata(result):
     for file in files:
       if len(file['channels']) > 0:
         res = http.request('GET',file['url_private_download'],headers = { 'Authorization': 'Bearer '+user_token });
-        os.makedirs('data/'+batch+'/files/'+file['id']);
-        f = open('data/'+batch+'/files/'+file['id']+'/'+file['name'],'ab');
+        os.makedirs(data_home+'/'+batch+'/files/'+file['id']);
+        f = open(data_home+'/'+batch+'/files/'+file['id']+'/'+file['name'],'ab');
         f.write(res.data);
         f.close();
         print(file['url_private_download'])
