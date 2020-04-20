@@ -49,6 +49,9 @@ def dd_makedirs():
 def sortfile_key(file):
   return int(file[-21:-5]);
 
+def dd_setdatahome(home):
+  data_home = home;
+
 def dd_backupfile(filename):
   backuptime = datetime.now().strftime('%Y%m%d%H%M%S')
   # move file to a backup
@@ -928,19 +931,19 @@ def exec_stages():
   else:
     print('skipping Stage 4');
 
+try:
+  sign_token = os.environ['SLACK_SIGN_TOKEN']
+  access_token = os.environ['SLACK_ACCESS_TOKEN']
+  user_token = os.environ['SLACK_USER_TOKEN']
+  # user_token = 'SLACK_USER_TOKEN'  
+  data_home = os.environ['SLACK_DATA_HOME']
+except:
+  print('no tokens available')
+  data_home = "."
+
+# ssl_context = ssl.create_default_context(cafile=certifi.where())
+
 if __name__ == "__main__":
-  try:
-    sign_token = os.environ['SLACK_SIGN_TOKEN']
-    access_token = os.environ['SLACK_ACCESS_TOKEN']
-    user_token = os.environ['SLACK_USER_TOKEN']
-    # user_token = 'SLACK_USER_TOKEN'  
-    data_home = os.environ['SLACK_DATA_HOME']
-  except:
-    print('no tokens available')
-    data_home = "."
-
-  # ssl_context = ssl.create_default_context(cafile=certifi.where())
-
   if len(sys.argv) >= 2:
     batch = sys.argv[1]
     master = batch+'/csv'
