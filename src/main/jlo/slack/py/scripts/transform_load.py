@@ -84,9 +84,24 @@ def epochstr_to_isostr(s):
 def dd_userdata(result):
   filename = "user_data";
   try:
-    users = result['members'];
-    pdf = pandas.DataFrame.from_records(users);
-    ddpdf = pdf[['id','name','real_name','tz']];
+    members = result['members'];
+    ll = []
+    for member in members:
+      row = {}
+      if 'id' in member:
+        row.update({'id': member['id']})
+      if 'name' in member:
+        row['name'] = member['name']
+      if 'tz' in member:
+        row['tz'] = member['tz']
+      if 'email' in member['profile']:
+        row['email'] = member['profile']['email']
+      if 'real_name' in member:
+        row['real_name'] = member['real_name']
+      ll.append(row)
+    ddpdf = pandas.DataFrame.from_records(ll)
+    # pdf = pandas.DataFrame.from_records(users);
+    # ddpdf = pdf[['id','name','real_name','tz']];
     dd_writefile(master,filename,ddpdf)
   except Exception as err:
     print('Error')
@@ -462,7 +477,7 @@ def _merge_data(filename,index_cols,cols):
       merged_cols = [];
       merged_rename_cols = {};
       for col in cols:
-        if col not in index_cols:
+        if col not in index_cols and col in mpdf:
           merged_cols.append(col+'_x'); 
           merged_rename_cols[col+'_x'] = col;
         else:
@@ -503,7 +518,7 @@ def _merge_data(filename,index_cols,cols):
 
 def merge_userdata():
   filename = 'user_data' 
-  cols = ['id','name','real_name','tz']
+  cols = ['id','name','real_name','tz','email']
   index_cols = ['id']
   print('merging user dataset');
   _merge_data(filename,index_cols,cols);
