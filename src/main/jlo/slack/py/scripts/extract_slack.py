@@ -37,6 +37,9 @@ batchtime = datetime.now();
 # batch = floor(batchtime.timestamp()*1000)
 batch = batchtime.strftime('%Y%m%d%H%M%S')
 
+def get_slackclient():
+  return client;
+
 def dd_writemetadata():
   os.makedirs(data_home+'/'+batch+'/api');
   os.makedirs(data_home+'/'+batch+'/csv');
@@ -291,8 +294,9 @@ def retrieve_filedata():
     print('Error')
     print(err)
 
-dd_writemetadata();
-retrieve_userdata();
-retrieve_channeldata();
-retrieve_filedata();
-print('this was executed with batch number '+batch);
+if __name__ == '__main__':
+  dd_writemetadata();
+  retrieve_userdata();
+  retrieve_channeldata();
+  retrieve_filedata();
+  print('this was executed with batch number '+batch);
