@@ -13,7 +13,7 @@ import itertools
 import hashlib
 from functools import reduce
 from math import floor
-from datetime import datetime
+from datetime import datetime, timedelta
 
 master = 'master/csv'
 metrics = 'metrics/csv'
@@ -63,7 +63,7 @@ def dd_writefile(key,filename,pdf,index=False):
 
 def dd_readfile(key,filename):
   try:
-    pdf = pandas.read_csv(data_home+'/'+key+'/'+filename+'.csv',dtype={'TS':str,'THREAD_TS':str,'ts':str,'thread_ts':str},encoding='utf-8');
+    pdf = pandas.read_csv(data_home+'/'+key+'/'+filename+'.csv',dtype={'TS':str,'THREAD_TS':str,'ts':str,'thread_ts':str,'batch':str},encoding='utf-8');
     return pdf;
   except Exception as err:
     print(err);
@@ -81,11 +81,18 @@ def epochstr_to_isostr(s):
   return time.strftime('%Y-%m-%dT%H:%M:%S.000',time.localtime(float(s)));
   # return datetime.utcfromtimestamp(time.gmtime(float(s)));
 
+def batchstr_to_datetime(s):
+  return datetime.strptime(s,'%Y%m%d%H%M%S');
+
+def datetime_to_epochstr(d):
+  return d.strftime('%s');
+
 def dd_userdata(result):
   filename = "user_data";
   try:
     members = result['members'];
     ll = []
+    b = datetime_to_epochstr(batchstr_to_datetime(batch).replace(hour=0,minute=0,second=0,microsecond=0) + timedelta(days=-1))
     for member in members:
       row = {}
       if 'id' in member:
@@ -96,8 +103,11 @@ def dd_userdata(result):
         row['tz'] = member['tz']
       if 'email' in member['profile']:
         row['email'] = member['profile']['email']
+      else:
+        row['email'] = ''
       if 'real_name' in member:
         row['real_name'] = member['real_name']
+      row['batch'] = b
       ll.append(row)
     ddpdf = pandas.DataFrame.from_records(ll)
     # pdf = pandas.DataFrame.from_records(users);
@@ -457,12 +467,15 @@ def convert_to_json():
     print('Error')
     print(err)
 
-def _merge_data(filename,index_cols,cols):
+def _merge_data(filename,index_cols,cols,existing_cols=[]):
   # for merging 
   # - we will append new records
   # - we will update existing records based upon key (just take the latest record even if it is the same)
   # - we will not delete old records
   try:
+    print(index_cols);
+    print(cols);
+    print(existing_cols);
     inpdf = dd_readfile(master,filename);
     inpdf = inpdf.sort_values(index_cols);
     print(inpdf);
@@ -474,18 +487,31 @@ def _merge_data(filename,index_cols,cols):
     else:
       mpdf = mpdf.sort_values(index_cols);
       df = inpdf.merge(mpdf.drop_duplicates(), on=index_cols, how='left', indicator=True)
+      print(df.columns);
+      print(df);
       merged_cols = [];
       merged_rename_cols = {};
+      insert_cols = [];
+      insert_rename_cols = {};
       for col in cols:
-        if col not in index_cols and col in mpdf:
+        if col not in index_cols and col not in existing_cols and col in mpdf:
           merged_cols.append(col+'_x'); 
           merged_rename_cols[col+'_x'] = col;
+          insert_cols.append(col+'_x'); 
+          insert_rename_cols[col+'_x'] = col;
+        elif col in existing_cols:
+          merged_cols.append(col+'_y'); 
+          merged_rename_cols[col+'_y'] = col;
+          insert_cols.append(col+'_x'); 
+          insert_rename_cols[col+'_x'] = col;
         else:
           merged_cols.append(col); 
           merged_rename_cols[col] = col;
+          insert_cols.append(col); 
+          insert_rename_cols[col] = col;
       insertpdf = df[df['_merge'] == 'left_only'];
-      insertpdf = insertpdf[merged_cols];
-      insertpdf = insertpdf.rename(columns=merged_rename_cols);
+      insertpdf = insertpdf[insert_cols];
+      insertpdf = insertpdf.rename(columns=insert_rename_cols);
       insertpdf = insertpdf.drop_duplicates();
       insertpdf = insertpdf.sort_values(index_cols);
       if insertpdf.empty == False:
@@ -518,10 +544,11 @@ def _merge_data(filename,index_cols,cols):
 
 def merge_userdata():
   filename = 'user_data' 
-  cols = ['id','name','real_name','tz','email']
+  cols = ['id','name','real_name','tz','email','batch']
   index_cols = ['id']
+  existing_cols = ['batch']
   print('merging user dataset');
-  _merge_data(filename,index_cols,cols);
+  _merge_data(filename,index_cols,cols,existing_cols);
 
 def merge_channeldata():
   filename = 'channel_data'
@@ -601,6 +628,45 @@ def create_conversationdata():
     # Rename columns
     ddpdf = conversation_pdf.rename(columns={'channel':'CHANNEL','type':'TYPE','subtype':'SUBTYPE','ts':'TS','thread_ts':'THREAD_TS','ts_int':'TS_INT','time':'TIME','user':'USER','real_name':'REAL_NAME','name':'NAME','text':'TEXT','city':'CITY','COUNTRY':'COUNTRY','ISO':'ISO'});
 
+    dd_writefile(metrics,filename,ddpdf);
+  except Exception as err:
+    print('Error');
+    print(err);
+
+def create_useractivedata():
+  filename = "useractive_data";
+  try:
+    # This requires updates to user_data to capture the batch time as the invited (also the merge to take the "original" value leaving it with the first time that user was invited)
+    # Users that don't exist in conversation_data - these are users that have been invited (need to calculate the date based upon the batch to record the time of invited)
+    # User's first interaction in conversation_data that is a channel join (this should also the first record sorted by TS; need to use TS from that record to record the time of joined)
+    # User's first activity in conversation_data that is a message (either "null" or "channel_broadcast"; need to use TS from that record to record the time of first activity)
+    # User's last activity in conversation_data that is a message (either "null" or "channel_broadcast"; need to use TS from that record to record the time of last activity)
+    # User's count of activity in conversation_data that is a message (either "null" or "channel_broadcast"; need to use count(TS) from that record to record the number of activities)
+
+    conversation_pdf = dd_readfile(metrics,'conversation_data');
+    conversation_pdf = conversation_pdf.sort_values(['USER','TS'],ascending=(True,True));
+    user_pdf = dd_readfile(master,'user_data');
+    user_pdf = user_pdf.sort_values(['id','batch'],ascending=(True,True));
+    
+    ll = []
+    for user in user_pdf.values.tolist():
+      userconv_pdf = conversation_pdf[conversation_pdf['USER'] == user[0]];
+      join_date = ''
+      first_message_date = ''
+      last_message_date = ''
+      message_count = ''
+      if len(userconv_pdf) > 0:
+        join_date = userconv_pdf['TS'].iloc[0]
+        u1_pdf_1 = userconv_pdf[userconv_pdf['SUBTYPE'] == 'thread_broadcast'];
+        u1_pdf_2 = userconv_pdf[userconv_pdf['SUBTYPE'].isnull()];
+        useract_pdf = u1_pdf_1.append(u1_pdf_2,ignore_index=False);
+        if len(useract_pdf) > 0:
+          message_count = len(useract_pdf)
+          first_message_date = useract_pdf['TS'].iloc[0]
+          last_message_date = useract_pdf['TS'].iloc[len(useract_pdf)-1]
+      ll.append({'USER': user[0], 'INVITE_DATE': user[5], 'JOIN_DATE': join_date, 'MESSAGE_COUNT': message_count, 'FIRST_MESSAGE_DATE': first_message_date, 'LAST_MESSAGE_DATE': last_message_date})
+
+    ddpdf = pandas.DataFrame.from_records(ll);
     dd_writefile(metrics,filename,ddpdf);
   except Exception as err:
     print('Error');
@@ -921,6 +987,7 @@ def exec_stages():
     print('Stage 3 - CREATE ANALYSIS');
     try:
       create_conversationdata();
+      create_useractivedata();
       create_timediff_conversations();
       create_timediff_threads();
       create_timediff_users();
