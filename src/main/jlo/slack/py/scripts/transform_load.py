@@ -647,7 +647,9 @@ def create_useractivedata():
     conversation_pdf = conversation_pdf.sort_values(['USER','TS'],ascending=(True,True));
     user_pdf = dd_readfile(master,'user_data');
     user_pdf = user_pdf.sort_values(['id','batch'],ascending=(True,True));
-    
+    reaction_pdf = dd_readfile(master,'reaction_data');
+    reaction_pdf = reaction_pdf.sort_values(['user','ts'],ascending=(True,True));
+
     ll = []
     for user in user_pdf.values.tolist():
       userconv_pdf = conversation_pdf[conversation_pdf['USER'] == user[0]];
@@ -655,16 +657,31 @@ def create_useractivedata():
       first_message_date = ''
       last_message_date = ''
       message_count = ''
+      first_reaction_date = ''
+      last_reaction_date = ''
+      reaction_count = ''
       if len(userconv_pdf) > 0:
         join_date = userconv_pdf['TS'].iloc[0]
         u1_pdf_1 = userconv_pdf[userconv_pdf['SUBTYPE'] == 'thread_broadcast'];
         u1_pdf_2 = userconv_pdf[userconv_pdf['SUBTYPE'].isnull()];
         useract_pdf = u1_pdf_1.append(u1_pdf_2,ignore_index=False);
+        useract_pdf = useract_pdf.sort_values(['USER','TS'],ascending=(True,True));
         if len(useract_pdf) > 0:
           message_count = len(useract_pdf)
           first_message_date = useract_pdf['TS'].iloc[0]
           last_message_date = useract_pdf['TS'].iloc[len(useract_pdf)-1]
-      ll.append({'USER': user[0], 'INVITE_DATE': user[5], 'JOIN_DATE': join_date, 'MESSAGE_COUNT': message_count, 'FIRST_MESSAGE_DATE': first_message_date, 'LAST_MESSAGE_DATE': last_message_date})
+        if float(user[5]) > float(join_date):
+          invite_date = join_date
+        else:
+          invite_date = user[5]
+      else:
+        invite_date = user[5]
+      userreact_pdf = reaction_pdf[reaction_pdf['user'] == user[0]];
+      if len(userreact_pdf) > 0:
+        reaction_count = len(userreact_pdf)
+        first_reaction_date = userreact_pdf['ts'].iloc[0]
+        last_reaction_date = userreact_pdf['ts'].iloc[len(userreact_pdf)-1]
+      ll.append({'USER': user[0], 'NAME': user[1], 'INVITE_DATE': invite_date, 'JOIN_DATE': join_date, 'MESSAGE_COUNT': message_count, 'FIRST_MESSAGE_DATE': first_message_date, 'LAST_MESSAGE_DATE': last_message_date, 'REACTION_COUNT': reaction_count, 'FIRST_REACTION_DATE': first_reaction_date, 'LAST_REACTION_DATE': last_reaction_date})
 
     ddpdf = pandas.DataFrame.from_records(ll);
     dd_writefile(metrics,filename,ddpdf);

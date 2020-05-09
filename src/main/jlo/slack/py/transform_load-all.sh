@@ -1,4 +1,5 @@
 . ~/.bashrc
+. ./env.sh
 current_version=v3
 rm ${SLACK_DATA_HOME}/master/csv/*
 rm ${SLACK_DATA_HOME}/metrics/csv/*
