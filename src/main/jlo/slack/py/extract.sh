@@ -13,3 +13,4 @@ zip -r ausinnovation-slack-${archive}-data-${current_version}.zip ${archive}/api
 zip -r ausinnovation-slack-${archive}-metrics-${current_version}.zip ${archive}/csv ${archive}/metrics ${archive}/metadata
 zip -r ausinnovation-slack-${archive}-master-metrics-${current_version}.zip master/csv/*_data.csv metrics
 cd -
+./run.sh scripts/load_pg.py
