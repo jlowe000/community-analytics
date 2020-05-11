@@ -1,0 +1,6 @@
+[postgres-slack]
+database.url=jdbc:postgresql:database
+database.driver=org.postgresql.Driver
+database.user=@username@
+database.password=@password@
+spark.jars=postgresql-42.2.12.jar
