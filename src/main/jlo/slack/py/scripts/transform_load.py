@@ -178,11 +178,13 @@ def dd_messagedata(id,result):
       if 'reply_count' not in ddpdf:
         ddpdf['reply_count'] = None;
       if 'user' not in ddpdf:
-        ddpdf['user'] = None;
+        ddpdf['user_id'] = None;
+      else:
+        ddpdf['user_id'] = ddpdf['user'];
       if 'text' not in ddpdf:
         ddpdf['text'] = None;
       ddpdf['time'] = ddpdf['ts'].apply(epochstr_to_isostr);
-      ddpdf = ddpdf[['channel','type','subtype','ts','thread_ts','time','reply_count','user','text']];
+      ddpdf = ddpdf[['channel','type','subtype','ts','thread_ts','time','reply_count','user_id','text']];
       dd_writefile(master,filename,ddpdf)
   except Exception as err:
     print('Error - dd_messagedata')
@@ -206,11 +208,13 @@ def dd_threaddata(id,ts,result):
       if 'thread_ts' not in ddpdf:
         ddpdf['thread_ts'] = None;
       if 'user' not in ddpdf:
-        ddpdf['user'] = None;
+        ddpdf['user_id'] = None;
+      else:
+        ddpdf['user_id'] = ddpdf['user'];
       if 'text' not in ddpdf:
         ddpdf['text'] = None;
       ddpdf['time'] = ddpdf['ts'].apply(epochstr_to_isostr);
-      ddpdf = ddpdf[['channel','type','subtype','ts','thread_ts','time','user','text']];
+      ddpdf = ddpdf[['channel','type','subtype','ts','thread_ts','time','user_id','text']];
       # print(ddpdf);
       dd_writefile(master,filename,ddpdf)
   except Exception as err:
@@ -229,7 +233,7 @@ def dd_reactiondata(id,row):
             thread_ts = row['thread_ts']
           else:
             thread_ts = ''
-          l.append({'channel':id, 'ts': str(row['ts']), 'thread_ts': str(thread_ts), 'user': user, 'reaction':str(reaction['name'])});
+          l.append({'channel':id, 'ts': str(row['ts']), 'thread_ts': str(thread_ts), 'user_id': user, 'reaction':str(reaction['name'])});
       pdf = pandas.DataFrame.from_records(l);
       if len(pdf.index) > 0:
         dd_writefile(master,filename,pdf)
@@ -245,7 +249,7 @@ def dd_filedata(result):
     for row in files:
       if 'channels' in row and row['channels'] != None:
         for channel in row['channels']:
-          lc.append({'id': row['id'], 'channel': channel, 'name': row['name'], 'time': epochstr_to_isostr(row['timestamp']), 'user': row['user']});
+          lc.append({'id': row['id'], 'channel': channel, 'name': row['name'], 'time': epochstr_to_isostr(row['timestamp']), 'user_id': row['user']});
     print('files downloaded mapped to channels - '+str(len(lc)))
     pdf = pandas.DataFrame.from_records(lc);
     dd_writefile(master,filename,pdf)
@@ -561,21 +565,21 @@ def merge_channeldata():
 
 def merge_messagedata():
   filename = 'message_data'
-  cols = ["channel","type","subtype","ts","thread_ts","time","reply_count","user","text"]
+  cols = ["channel","type","subtype","ts","thread_ts","time","reply_count","user_id","text"]
   index_cols = ["channel","ts"]
   print('merging message dataset');
   _merge_data(filename,index_cols,cols);
 
 def merge_threaddata():
   filename = 'thread_data'
-  cols = ["channel","type","subtype","ts","thread_ts","time","user","text"]
+  cols = ["channel","type","subtype","ts","thread_ts","time","user_id","text"]
   index_cols = ["channel","ts"]
   print('merging thread dataset');
   _merge_data(filename,index_cols,cols);
 
 def merge_reactiondata():
   filename = 'reaction_data'
-  cols = ["channel","ts","thread_ts","user","reaction"]
+  cols = ["channel","ts","thread_ts","user_id","reaction"]
   index_cols = ["ts"]
   print('merging reaction dataset');
   _merge_data(filename,index_cols,cols);
@@ -605,8 +609,8 @@ def create_conversationdata():
     country_ref_pdf = dd_readref('country');
 
     # Use only subset of information (and create identical columns)
-    message_part_pdf = message_pdf[['channel','type','subtype','ts','thread_ts','time','user','text']];
-    thread_part_pdf = thread_pdf[['channel','type','subtype','ts','thread_ts','time','user','text']];
+    message_part_pdf = message_pdf[['channel','type','subtype','ts','thread_ts','time','user_id','text']];
+    thread_part_pdf = thread_pdf[['channel','type','subtype','ts','thread_ts','time','user_id','text']];
     # Merge message and thread data
     conversation_part_pdf = message_part_pdf.append(thread_part_pdf,ignore_index=False);
     conversation_part_pdf = conversation_part_pdf.drop_duplicates();
@@ -622,15 +626,15 @@ def create_conversationdata():
     # Mask NAN values of country based upon timezone information
     user_geo_pdf['COUNTRY'] = user_geo_pdf['COUNTRY'].mask(pandas.isnull, user_geo_pdf['country']);
     # Merge user data with conversation data based upon user id
-    conversation_geo_pdf = conversation_part_pdf.merge(user_geo_pdf,how='left',left_on='user',right_on='id');
+    conversation_geo_pdf = conversation_part_pdf.merge(user_geo_pdf,how='left',left_on='user_id',right_on='id');
     # Add a column (replica of ts) that can be used as an number
     conversation_geo_pdf['ts_int'] = conversation_geo_pdf['ts']
     # Select columns
-    conversation_pdf = conversation_geo_pdf[['channel','type','subtype','ts','thread_ts','ts_int','time','user','real_name','name','text','city','COUNTRY','ISO']];
+    conversation_pdf = conversation_geo_pdf[['channel','type','subtype','ts','thread_ts','ts_int','time','user_id','real_name','name','text','city','COUNTRY','ISO']];
     # Rename columns
     # remove all upper-case to allow easier postgres implementation (changed to lowercase)
-    # ddpdf = conversation_pdf.rename(columns={'channel':'CHANNEL','type':'TYPE','subtype':'SUBTYPE','ts':'TS','thread_ts':'THREAD_TS','ts_int':'TS_INT','time':'TIME','user':'USER','real_name':'REAL_NAME','name':'NAME','text':'TEXT','city':'CITY','COUNTRY':'COUNTRY','ISO':'ISO'});
-    ddpdf = conversation_pdf.rename(columns={'channel':'channel','type':'type','subtype':'subtype','ts':'ts','thread_ts':'thread_ts','ts_int':'ts_int','time':'time','user':'user','real_name':'real_name','name':'name','text':'text','city':'city','COUNTRY':'country','ISO':'iso'});
+    # ddpdf = conversation_pdf.rename(columns={'channel':'CHANNEL','type':'TYPE','subtype':'SUBTYPE','ts':'TS','thread_ts':'THREAD_TS','ts_int':'TS_INT','time':'TIME','user_id':'USER','real_name':'REAL_NAME','name':'NAME','text':'TEXT','city':'CITY','COUNTRY':'COUNTRY','ISO':'ISO'});
+    ddpdf = conversation_pdf.rename(columns={'channel':'channel','type':'type','subtype':'subtype','ts':'ts','thread_ts':'thread_ts','ts_int':'ts_int','time':'time','user_id':'user_id','real_name':'real_name','name':'name','text':'text','city':'city','COUNTRY':'country','ISO':'iso'});
 
     dd_writefile(metrics,filename,ddpdf);
   except Exception as err:
@@ -648,15 +652,15 @@ def create_useractivedata():
     # User's count of activity in conversation_data that is a message (either "null" or "channel_broadcast"; need to use count(TS) from that record to record the number of activities)
 
     conversation_pdf = dd_readfile(metrics,'conversation_data');
-    conversation_pdf = conversation_pdf.sort_values(['user','ts'],ascending=(True,True));
+    conversation_pdf = conversation_pdf.sort_values(['user_id','ts'],ascending=(True,True));
     user_pdf = dd_readfile(master,'user_data');
     user_pdf = user_pdf.sort_values(['id','batch'],ascending=(True,True));
     reaction_pdf = dd_readfile(master,'reaction_data');
-    reaction_pdf = reaction_pdf.sort_values(['user','ts'],ascending=(True,True));
+    reaction_pdf = reaction_pdf.sort_values(['user_id','ts'],ascending=(True,True));
 
     ll = []
     for user in user_pdf.values.tolist():
-      userconv_pdf = conversation_pdf[conversation_pdf['user'] == user[0]];
+      userconv_pdf = conversation_pdf[conversation_pdf['user_id'] == user[0]];
       join_date = ''
       first_message_date = ''
       last_message_date = ''
@@ -669,7 +673,7 @@ def create_useractivedata():
         u1_pdf_1 = userconv_pdf[userconv_pdf['subtype'] == 'thread_broadcast'];
         u1_pdf_2 = userconv_pdf[userconv_pdf['subtype'].isnull()];
         useract_pdf = u1_pdf_1.append(u1_pdf_2,ignore_index=False);
-        useract_pdf = useract_pdf.sort_values(['user','ts'],ascending=(True,True));
+        useract_pdf = useract_pdf.sort_values(['user_id','ts'],ascending=(True,True));
         if len(useract_pdf) > 0:
           message_count = len(useract_pdf)
           first_message_date = useract_pdf['ts'].iloc[0]
@@ -680,12 +684,12 @@ def create_useractivedata():
           invite_date = user[5]
       else:
         invite_date = user[5]
-      userreact_pdf = reaction_pdf[reaction_pdf['user'] == user[0]];
+      userreact_pdf = reaction_pdf[reaction_pdf['user_id'] == user[0]];
       if len(userreact_pdf) > 0:
         reaction_count = len(userreact_pdf)
         first_reaction_date = userreact_pdf['ts'].iloc[0]
         last_reaction_date = userreact_pdf['ts'].iloc[len(userreact_pdf)-1]
-      ll.append({'user': user[0], 'name': user[1], 'invite_date': invite_date, 'join_date': join_date, 'message_count': message_count, 'first_message_date': first_message_date, 'last_message_date': last_message_date, 'reaction_count': reaction_count, 'first_reaction_date': first_reaction_date, 'last_reaction_date': last_reaction_date})
+      ll.append({'user_id': user[0], 'name': user[1], 'invite_date': invite_date, 'join_date': join_date, 'message_count': message_count, 'first_message_date': first_message_date, 'last_message_date': last_message_date, 'reaction_count': reaction_count, 'first_reaction_date': first_reaction_date, 'last_reaction_date': last_reaction_date})
 
     ddpdf = pandas.DataFrame.from_records(ll);
     dd_writefile(metrics,filename,ddpdf);
@@ -755,26 +759,26 @@ def create_edgedata():
     c2_pdf = c2_pdf[c2_pdf['thread_ts'].notnull()];
     c4_pdf = c1_pdf.merge(c2_pdf,how='left',left_on='thread_ts',right_on='ts');
     # print(c4_pdf.shape);
-    c4_pdf = c4_pdf[c4_pdf['user_x'] != c4_pdf['user_y']];
-    c4_pdf = c4_pdf[['channel_x','user_x','user_y']];
-    c4_pdf['user_y'] = c4_pdf['user_y'].mask(pandas.isnull, c4_pdf['channel_x']);
+    c4_pdf = c4_pdf[c4_pdf['user_id_x'] != c4_pdf['user_id_y']];
+    c4_pdf = c4_pdf[['channel_x','user_id_x','user_id_y']];
+    c4_pdf['user_id_y'] = c4_pdf['user_id_y'].mask(pandas.isnull, c4_pdf['channel_x']);
     c4_pdf['relate'] = 'interacts';
-    c4_pdf = c4_pdf.rename(columns={'channel_x':'channel','user_x':'source','user_y':'target','relate':'relate'});
+    c4_pdf = c4_pdf.rename(columns={'channel_x':'channel','user_id_x':'source','user_id_y':'target','relate':'relate'});
     # print(c4_pdf.shape);
     c3_pdf = c1_pdf.copy();
     c5_pdf = c3_pdf.merge(reaction_pdf,how='left',left_on='ts',right_on='ts');
-    c5_pdf = c5_pdf[c5_pdf['user_y'].notnull()];
-    c5_pdf = c5_pdf[['channel_x','user_x','user_y']];
+    c5_pdf = c5_pdf[c5_pdf['user_id_y'].notnull()];
+    c5_pdf = c5_pdf[['channel_x','user_id_x','user_id_y']];
     c5_pdf['relate'] = 'reacts';
-    c5_pdf = c5_pdf.rename(columns={'channel_x':'channel','user_x':'source','user_y':'target','relate':'relate'});
+    c5_pdf = c5_pdf.rename(columns={'channel_x':'channel','user_id_x':'source','user_id_y':'target','relate':'relate'});
     # print(c5_pdf.shape);
     c6_pdf = c1_pdf.copy();
     c6_pdf = c6_pdf.merge(tag_pdf,how='left',on='ts');
-    c6_pdf = c6_pdf[c6_pdf['user'].notnull()];
+    c6_pdf = c6_pdf[c6_pdf['user_id'].notnull()];
     c6_pdf = c6_pdf[c6_pdf['type_y'] == 'user'];
-    c6_pdf = c6_pdf[['channel_x','user','tag']];
+    c6_pdf = c6_pdf[['channel_x','user_id','tag']];
     c6_pdf['relate'] = 'refers';
-    c6_pdf = c6_pdf.rename(columns={'channel_x':'channel','user':'source','tag':'target','relate':'relate'});
+    c6_pdf = c6_pdf.rename(columns={'channel_x':'channel','user_id':'source','tag':'target','relate':'relate'});
     # print(c6_pdf.shape);
     # print(c6_pdf);
     ddpdf = c4_pdf.append(c5_pdf,ignore_index=True);
@@ -798,12 +802,12 @@ def aggregate_conversationdata():
     agg_pdf = c1_pdf.groupby('channel').count()[['ts','thread_ts']];
     # print(agg_pdf);
     dd_writefile(metrics,'aggr_by_channel',agg_pdf,True);
-    agg_pdf = c1_pdf.groupby(['channel','user']).count()[['ts','thread_ts']];
+    agg_pdf = c1_pdf.groupby(['channel','user_id']).count()[['ts','thread_ts']];
     # print(agg_pdf);
     dd_writefile(metrics,'aggr_by_channel_user',agg_pdf,True);
     unique_pdf = agg_pdf.copy();
     unique_pdf.reset_index(inplace=True);
-    unique_pdf = unique_pdf.groupby(['channel']).count()[['user']];
+    unique_pdf = unique_pdf.groupby(['channel']).count()[['user_id']];
     print(unique_pdf);
     dd_writefile(metrics,'number_channel_user',unique_pdf,True);
     max_pdf = agg_pdf.groupby(['channel']).max()[['ts']];
@@ -812,10 +816,10 @@ def aggregate_conversationdata():
     m1_pdf = m1_pdf[m1_pdf['ts_x'] == m1_pdf['ts_y']];
     print(m1_pdf);
     m1_pdf.reset_index(inplace=True);
-    m2_pdf = m1_pdf.merge(user_pdf,how='left',right_on='id',left_on='user');
+    m2_pdf = m1_pdf.merge(user_pdf,how='left',right_on='id',left_on='user_id');
     m3_pdf = m2_pdf.merge(channel_pdf,how='left',right_on='id',left_on='channel');
-    m4_pdf = m3_pdf[['channel','name_y','user','real_name','ts_x']];
-    m4_pdf = m4_pdf.rename(columns={'channel':'channel_id','name_y':'channel_name','user':'user_id','real_name':'user_name','ts_x':'ts'});
+    m4_pdf = m3_pdf[['channel','name_y','user_id','real_name','ts_x']];
+    m4_pdf = m4_pdf.rename(columns={'channel':'channel_id','name_y':'channel_name','user_id':'user_id','real_name':'user_name','ts_x':'ts'});
     # print(m4_pdf);
     dd_writefile(metrics,'max_by_channel_user',m4_pdf);
   except Exception as err:
@@ -841,7 +845,7 @@ def create_timediff_conversations():
     # print(df);
     # print(df.dtypes);
     # ddpdf = df[['CHANNEL','TYPE','SUBTYPE','TS','THREAD_TS','TS_INT','TIME','USER','REAL_NAME','NAME','TEXT','CITY','COUNTRY','ISO','TIME_TS_y']];
-    ddpdf = df[['channel','type','subtype','ts','thread_ts','ts_int','time','user','real_name','name','text','city','country','iso','time_ts_y']];
+    ddpdf = df[['channel','type','subtype','ts','thread_ts','ts_int','time','user_id','real_name','name','text','city','country','iso','time_ts_y']];
     ddpdf = ddpdf.rename(columns={'time_ts_y':'diff'});
     # print(ddpdf);
     # print(ddpdf.dtypes);
@@ -870,7 +874,7 @@ def create_timediff_threads():
     # print(df);
     # print(df.dtypes);
     # ddpdf = df[['CHANNEL','TYPE','SUBTYPE','TS','THREAD_TS','TS_INT','TIME','USER','REAL_NAME','NAME','TEXT','CITY','COUNTRY','ISO','TIME_TS_y']];
-    ddpdf = df[['channel','type','subtype','ts','thread_ts','ts_int','time','user','real_name','name','text','city','country','iso','time_ts_y']];
+    ddpdf = df[['channel','type','subtype','ts','thread_ts','ts_int','time','user_id','real_name','name','text','city','country','iso','time_ts_y']];
     ddpdf = ddpdf.rename(columns={'time_ts_y':'diff'});
     # print(ddpdf);
     # print(ddpdf.dtypes);
@@ -884,14 +888,14 @@ def create_timediff_users():
   try:
     df = dd_readfile(metrics,'conversation_data');
     df = df[df['thread_ts'].notnull()];
-    df = df.sort_values(['user','ts'],ascending=(True,True));
-    df['user_hash'] = df['user'].apply(hash);
+    df = df.sort_values(['user_id','ts'],ascending=(True,True));
+    df['user_hash'] = df['user_id'].apply(hash);
     df['time_ts'] = pandas.to_datetime(df['time']);
     # print(df);
-    ddf = df[['user','time_ts']];
+    ddf = df[['user_id','time_ts']];
     # print(ddf);
     # print(ddf.dtypes);
-    ddf = ddf.groupby(['user']).diff();
+    ddf = ddf.groupby(['user_id']).diff();
     ddf['time_ts'] = ddf['time_ts'] / numpy.timedelta64(1, 's');
     ddf['time_ts'] = ddf['time_ts'].mask(pandas.isnull, 0);
     # print(ddf);
@@ -900,7 +904,7 @@ def create_timediff_users():
     # print(df);
     # print(df.dtypes);
     # ddpdf = df[['CHANNEL','TYPE','SUBTYPE','TS','THREAD_TS','TS_INT','TIME','USER','USER_HASH','REAL_NAME','NAME','TEXT','CITY','COUNTRY','ISO','TIME_TS_y']];
-    ddpdf = df[['channel','type','subtype','ts','thread_ts','ts_int','time','user','user_hash','real_name','name','text','city','country','iso','time_ts_y']];
+    ddpdf = df[['channel','type','subtype','ts','thread_ts','ts_int','time','user_id','user_hash','real_name','name','text','city','country','iso','time_ts_y']];
     ddpdf = ddpdf.rename(columns={'time_ts_y':'diff'});
     # print(ddpdf);
     # print(ddpdf.dtypes);
@@ -918,7 +922,7 @@ def aggregate_threads():
     ddf.reset_index(inplace=True);
     print(ddf);
     dd_writefile(metrics,'aggr_by_thread',ddf);
-    ddf = df.groupby(['channel','thread_ts','user']).count()[['ts']];
+    ddf = df.groupby(['channel','thread_ts','user_id']).count()[['ts']];
     ddf.reset_index(inplace=True);
     print(ddf);
     dd_writefile(metrics,'aggr_by_thread_user',ddf);
