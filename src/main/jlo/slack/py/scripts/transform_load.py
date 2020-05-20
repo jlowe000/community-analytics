@@ -586,7 +586,7 @@ def merge_reactiondata():
 
 def merge_filedata():
   filename = 'file_data'
-  cols = ["id","channel","name","time","user"]
+  cols = ["id","channel","name","time","user_id"]
   index_cols = ["id","channel"]
   print('merging channel dataset');
   _merge_data(filename,index_cols,cols);
