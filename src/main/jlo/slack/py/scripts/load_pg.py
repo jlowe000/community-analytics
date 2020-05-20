@@ -30,6 +30,17 @@ def load_channel():
   df.show()
   df.write.jdbc(url, data_name, mode='overwrite', properties={'user': user, 'password': password, 'driver': driver})
 
+def load_channel_ref():
+  data_name = 'channel_ref'
+  dataset = 'references'
+  schema = StructType([ StructField('id', StringType(), True)
+                       ,StructField('category_name', StringType(), True)
+                       ,StructField('category_index', StringType(), True) ])
+  dd = tl.dd_readfile(dataset,data_name)
+  df = spark.createDataFrame(dd,schema)
+  df.show()
+  df.write.jdbc(url, data_name, mode='overwrite', properties={'user': user, 'password': password, 'driver': driver})
+
 def load_user():
   data_name = 'user_data'
   dataset = 'master/csv'
@@ -159,6 +170,7 @@ def load_edge():
 
 def load_master_data():
   load_channel();
+  load_channel_ref();
   load_reaction();
   load_user();
   load_file();
