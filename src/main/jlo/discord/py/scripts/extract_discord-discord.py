@@ -68,7 +68,7 @@ def dd_backupfile(filename):
   os.rename(data_home+'/master/csv/'+filename+'.csv',data_home+'/master/csv/'+filename+'-'+batch+'.csv')
 
 def dd_writefile(key,filename,pdf,index=False):
-  with open(data_home+'/'+key+'/'+filename+'.csv','a',encoding='utf-8') as f:
+  with open(data_home+'/'+key+'/'+filename+'.csv','a',encoding='utf-8',newline='') as f:
     pdf.to_csv(f,index=index,quoting=csv.QUOTE_ALL,mode='a',header=f.tell()==0);
 
 def datetime_to_isostr(dt):
