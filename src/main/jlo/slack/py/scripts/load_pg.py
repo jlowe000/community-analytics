@@ -19,7 +19,8 @@ spark = SparkSession.builder.master('local').appName('SlackBot').config('spark.j
 def load_channel():
   data_name = 'channel_data'
   dataset = 'master/csv'
-  schema = StructType([ StructField('id', StringType(), True)
+  schema = StructType([ StructField('index', IntegerType(), True)
+                       ,StructField('id', StringType(), True)
                        ,StructField('name', StringType(), True)
                        ,StructField('type', StringType(), True)
                        ,StructField('class', StringType(), True)
@@ -34,8 +35,9 @@ def load_channel_ref():
   data_name = 'channel_ref'
   dataset = 'references'
   schema = StructType([ StructField('id', StringType(), True)
+                       ,StructField('index', IntegerType(), True)
                        ,StructField('category_name', StringType(), True)
-                       ,StructField('category_index', StringType(), True) ])
+                       ,StructField('category_index', IntegerType(), True) ])
   dd = tl.dd_readfile(dataset,data_name)
   df = spark.createDataFrame(dd,schema)
   df.show()
@@ -44,7 +46,8 @@ def load_channel_ref():
 def load_user():
   data_name = 'user_data'
   dataset = 'master/csv'
-  dd_schema = StructType([ StructField('id', StringType(), True)
+  dd_schema = StructType([ StructField('index', IntegerType(), True)
+                          ,StructField('id', StringType(), True)
                           ,StructField('name', StringType(), True)
                           ,StructField('real_name', StringType(), True)
                           ,StructField('tz', StringType(), True)
@@ -58,7 +61,8 @@ def load_user():
 def load_reaction():
   data_name = 'reaction_data'
   dataset = 'master/csv'
-  schema = StructType([ StructField('channel', StringType(), True)
+  schema = StructType([ StructField('index', IntegerType(), True)
+                       ,StructField('channel', StringType(), True)
                        ,StructField('ts', StringType(), True)
                        ,StructField('thread_ts', StringType(), True)
                        ,StructField('user_id', StringType(), True)
@@ -71,7 +75,8 @@ def load_reaction():
 def load_poll():
   data_name = 'poll_data'
   dataset = 'master/csv'
-  schema = StructType([ StructField('poll_id', StringType(), True)
+  schema = StructType([ StructField('index', IntegerType(), True)
+                       ,StructField('poll_id', StringType(), True)
                        ,StructField('ts', StringType(), True)
                        ,StructField('time', StringType(), True)
                        ,StructField('text', StringType(), True)
@@ -88,7 +93,8 @@ def load_poll():
 def load_file():
   data_name = 'file_data'
   dataset = 'master/csv'
-  schema = StructType([ StructField('id', StringType(), True)
+  schema = StructType([ StructField('index', IntegerType(), True)
+                       ,StructField('id', StringType(), True)
                        ,StructField('channel', StringType(), True)
                        ,StructField('name', StringType(), True)
                        ,StructField('time', StringType(), True)
@@ -169,17 +175,27 @@ def load_edge():
   df.write.jdbc(url, data_name, mode='overwrite', properties={'user': user, 'password': password, 'driver': driver})
 
 def load_master_data():
+  print('loading master data')
   load_channel();
+  print('loading master data')
   load_channel_ref();
+  print('loading master data')
   load_reaction();
+  print('loading master data')
   load_user();
+  print('loading master data')
   load_file();
+  print('loading master data')
   load_poll();
 
 def load_metric_data():
+  print('loading metric data')
   load_conversation();
+  print('loading metric data')
   load_tag();
+  print('loading metric data')
   load_node();
+  print('loading metric data')
   load_edge();
 
 if __name__ == '__main__':

@@ -63,7 +63,7 @@ def dd_writefile(key,filename,pdf,index=False):
 
 def dd_readfile(key,filename):
   try:
-    pdf = pandas.read_csv(data_home+'/'+key+'/'+filename+'.csv',dtype={'ts':str,'thread_ts':str,'batch':str},encoding='utf-8');
+    pdf = pandas.read_csv(data_home+'/'+key+'/'+filename+'.csv',dtype={'ts':str,'thread_ts':str,'batch':str,'index':int, 'category_index':int},encoding='utf-8');
     return pdf;
   except Exception as err:
     print(err);
@@ -87,7 +87,7 @@ def batchstr_to_datetime(s):
 def datetime_to_epochstr(d):
   return d.strftime('%s');
 
-def dd_userdata(result):
+def dd_userdata(result,index):
   filename = "user_data";
   try:
     members = result['members'];
@@ -110,14 +110,17 @@ def dd_userdata(result):
       row['batch'] = b
       ll.append(row)
     ddpdf = pandas.DataFrame.from_records(ll)
+    ddpdf = ddpdf.reset_index();
+    ddpdf['index'] = ddpdf.apply(lambda x: x['index'] + index,axis=1)
     # pdf = pandas.DataFrame.from_records(users);
     # ddpdf = pdf[['id','name','real_name','tz']];
     dd_writefile(master,filename,ddpdf)
+    return len(ddpdf) + index
   except Exception as err:
     print('Error')
     print(err)
 
-def dd_channeldata(result):
+def dd_channeldata(result,index):
   filename = "channel_data";
   try:
     channels = result['channels'];
@@ -148,8 +151,11 @@ def dd_channeldata(result):
       l.append({'id': id, 'name': channel_name, 'type': channel_type, 'class': channel_class, 'is_archived': is_archived, 'is_private': is_private });
       retrieve_messages(id);
     ddpdf = pandas.DataFrame.from_records(l);
+    ddpdf = ddpdf.reset_index();
+    ddpdf['index'] = ddpdf.apply(lambda x: x['index'] + index,axis=1)
     if len(ddpdf.index) > 0:
       dd_writefile(master,filename,ddpdf)
+    return len(ddpdf) + index
   except Exception as err:
     print('Error')
     print(err)
@@ -286,6 +292,7 @@ def dd_polldata(id,result):
 def retrieve_userdata():
   try:
     loop = True;
+    index = 0;
     files = glob.glob(data_home+'/'+batch+'/api/user_list*.json')
     for file in files:
       print('retrieving user_data - '+file);
@@ -303,7 +310,7 @@ def retrieve_userdata():
           time.sleep(0.1)
       if result == None:
         exit(-1);
-      dd_userdata(result);
+      index = dd_userdata(result,index);
   except Exception as err:
     print('Error')
     print(err)
@@ -311,6 +318,7 @@ def retrieve_userdata():
 def retrieve_channeldata():
   try:
     loop = True;
+    index = 0;
     files = glob.glob(data_home+'/'+batch+'/api/conversation_list*.json')
     files.sort(key = sortfile_key)
     # assuming it is in order of "filename" - though there are conflicting messages
@@ -330,7 +338,7 @@ def retrieve_channeldata():
           time.sleep(0.1)
       if result == None:
         exit(-1);
-      dd_channeldata(result);
+      index = dd_channeldata(result,index);
   except Exception as err:
     print('Error')
     print(err)
@@ -486,8 +494,15 @@ def _merge_data(filename,index_cols,cols,existing_cols=[]):
     inpdf = inpdf.sort_values(index_cols);
     print(inpdf);
     mpdf = dd_readfile('master/csv',filename);
+    if 'index' in mpdf:
+      mpdf = mpdf.drop(columns='index')
+    if 'index' in inpdf:
+      inpdf = inpdf.drop(columns='index')
     print(mpdf);
     if mpdf.empty and inpdf.empty == False:
+      inpdf = inpdf[cols];
+      inpdf = inpdf.reset_index(drop=True);
+      inpdf = inpdf.reset_index();
       dd_writefile('master/csv',filename,inpdf);
       print('initialising users dataset: '+str(len(inpdf)));
     else:
@@ -521,6 +536,9 @@ def _merge_data(filename,index_cols,cols,existing_cols=[]):
       insertpdf = insertpdf.drop_duplicates();
       insertpdf = insertpdf.sort_values(index_cols);
       if insertpdf.empty == False:
+        insertpdf = insertpdf[cols];
+        insertpdf = insertpdf.reset_index(drop=True);
+        insertpdf = insertpdf.reset_index();
         dd_writefile(master,filename+'_insert',insertpdf);
         print('adding users: '+str(len(insertpdf)));
       updatepdf = df[df['_merge'] == 'both'];
@@ -530,6 +548,9 @@ def _merge_data(filename,index_cols,cols,existing_cols=[]):
       updatepdf = updatepdf.sort_values(index_cols);
       print(updatepdf);
       if updatepdf.empty == False:
+        updatepdf = updatepdf[cols];
+        updatepdf = updatepdf.reset_index(drop=True);
+        updatepdf = updatepdf.reset_index();
         dd_writefile(master,filename+'_update',updatepdf);
         print('updating users: '+str(len(updatepdf)));
       deltapdf = insertpdf.append(updatepdf,ignore_index=False);
@@ -537,11 +558,14 @@ def _merge_data(filename,index_cols,cols,existing_cols=[]):
       unchangedpdf = df[df['_merge'] == 'left_only'];
       unchangedpdf = unchangedpdf[merged_cols];
       unchangedpdf = unchangedpdf.rename(columns=merged_rename_cols);
-      fullpdf = unchangedpdf.append(deltapdf,ignore_index=False);
+      fullpdf = unchangedpdf.append(deltapdf,ignore_index=True);
       fullpdf = fullpdf.drop_duplicates();
       fullpdf = fullpdf.sort_values(index_cols);
       if fullpdf.empty == False:
         dd_backupfile(filename);
+        fullpdf = fullpdf[cols];
+        fullpdf = fullpdf.reset_index(drop=True);
+        fullpdf = fullpdf.reset_index();
         dd_writefile('master/csv',filename,fullpdf);
         print('merging: '+str(len(fullpdf)));
   except Exception as err:
