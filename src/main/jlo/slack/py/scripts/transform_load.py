@@ -481,7 +481,7 @@ def convert_to_json():
     print('Error')
     print(err)
 
-def _merge_data(filename,index_cols,cols,existing_cols=[]):
+def _merge_data(filename,index_cols,cols,existing_cols=[],sort_cols=[]):
   # for merging 
   # - we will append new records
   # - we will update existing records based upon key (just take the latest record even if it is the same)
@@ -490,6 +490,7 @@ def _merge_data(filename,index_cols,cols,existing_cols=[]):
     print(index_cols);
     print(cols);
     print(existing_cols);
+    print(sort_cols);
     inpdf = dd_readfile(master,filename);
     inpdf = inpdf.sort_values(index_cols);
     print(inpdf);
@@ -564,6 +565,8 @@ def _merge_data(filename,index_cols,cols,existing_cols=[]):
       if fullpdf.empty == False:
         dd_backupfile(filename);
         fullpdf = fullpdf[cols];
+        if len(sort_cols) > 1:
+          fullpdf = fullpdf.sort_values(sort_cols);
         fullpdf = fullpdf.reset_index(drop=True);
         fullpdf = fullpdf.reset_index();
         dd_writefile('master/csv',filename,fullpdf);
@@ -577,8 +580,9 @@ def merge_userdata():
   cols = ['id','name','real_name','tz','email','batch']
   index_cols = ['id']
   existing_cols = ['batch']
+  sort_cols = ['batch']
   print('merging user dataset');
-  _merge_data(filename,index_cols,cols,existing_cols);
+  _merge_data(filename,index_cols,cols,existing_cols,sort_cols);
 
 def merge_channeldata():
   filename = 'channel_data'
@@ -684,7 +688,7 @@ def create_useractivedata():
 
     ll = []
     for user in user_pdf.values.tolist():
-      userconv_pdf = conversation_pdf[conversation_pdf['user_id'] == user[0]];
+      userconv_pdf = conversation_pdf[conversation_pdf['user_id'] == user[1]];
       join_date = ''
       first_message_date = ''
       last_message_date = ''
@@ -702,20 +706,21 @@ def create_useractivedata():
           message_count = len(useract_pdf)
           first_message_date = useract_pdf['ts'].iloc[0]
           last_message_date = useract_pdf['ts'].iloc[len(useract_pdf)-1]
-        if float(user[5]) > float(join_date):
+        if float(user[6]) > float(join_date):
           invite_date = join_date
         else:
-          invite_date = user[5]
+          invite_date = user[6]
       else:
-        invite_date = user[5]
-      userreact_pdf = reaction_pdf[reaction_pdf['user_id'] == user[0]];
+        invite_date = user[6]
+      userreact_pdf = reaction_pdf[reaction_pdf['user_id'] == user[1]];
       if len(userreact_pdf) > 0:
         reaction_count = len(userreact_pdf)
         first_reaction_date = userreact_pdf['ts'].iloc[0]
         last_reaction_date = userreact_pdf['ts'].iloc[len(userreact_pdf)-1]
-      ll.append({'user_id': user[0], 'name': user[1], 'invite_date': invite_date, 'join_date': join_date, 'message_count': message_count, 'first_message_date': first_message_date, 'last_message_date': last_message_date, 'reaction_count': reaction_count, 'first_reaction_date': first_reaction_date, 'last_reaction_date': last_reaction_date})
+      ll.append({'user_id': user[1], 'name': user[2], 'invite_date': invite_date, 'join_date': join_date, 'message_count': message_count, 'first_message_date': first_message_date, 'last_message_date': last_message_date, 'reaction_count': reaction_count, 'first_reaction_date': first_reaction_date, 'last_reaction_date': last_reaction_date})
 
     ddpdf = pandas.DataFrame.from_records(ll);
+    # print(ddpdf)
     dd_writefile(metrics,filename,ddpdf);
   except Exception as err:
     print('Error');
