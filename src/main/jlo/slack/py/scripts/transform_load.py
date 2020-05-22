@@ -565,7 +565,7 @@ def _merge_data(filename,index_cols,cols,existing_cols=[],sort_cols=[]):
       if fullpdf.empty == False:
         dd_backupfile(filename);
         fullpdf = fullpdf[cols];
-        if len(sort_cols) > 1:
+        if len(sort_cols) > 0:
           fullpdf = fullpdf.sort_values(sort_cols);
         fullpdf = fullpdf.reset_index(drop=True);
         fullpdf = fullpdf.reset_index();
