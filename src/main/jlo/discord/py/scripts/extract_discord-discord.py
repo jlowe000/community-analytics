@@ -601,13 +601,13 @@ async def retrieve_channel(self):
         print(message.id)
         # print(message.mentions)
         for mention in message.mentions:
-          mel.append({ 'message_ts': str(message.id), 'type': 'user', 'user_mentioned': str(mention.id), 'channel_mentioned': None })
+          mel.append({ 'channel': str(channel.id), 'ts': str(message.id), 'tag': str(mention.id), 'nice_tag': mention.display_name, 'type': 'user' })
         for channel_mention in message.channel_mentions:
-          mel.append({ 'message_ts': str(message.id), 'type': 'channel', 'user_mentioned': None, 'channel_mentioned': str(channel_mention.id) })
+          mel.append({ 'channel': str(channel.id), 'ts': str(message.id), 'tag': str(channel_mention.id), 'nice_tag': str(channel_mention), 'type': 'channel' })
         if message.mention_everyone and message.system_content.find("@everyone") != -1:
-          mel.append({ 'message_ts': str(message.id), 'type': 'everyone', 'user_mentioned': None, 'channel_mentioned': None })
+          mel.append({ 'channel': str(channel.id), 'ts': str(message.id), 'tag': 'everyone', 'nice_tag': 'everyone', 'type': 'user' })
         if message.mention_everyone and message.system_content.find("@here") != -1:
-          mel.append({ 'message_ts': str(message.id), 'type': 'here', 'user_mentioned': None, 'channel_mentioned': None })
+          mel.append({ 'channel': str(channel.id), 'ts': str(message.id), 'tag': 'here', 'nice_tag': 'here', 'type': 'user' })
         # print(message.channel_mentions)
         # print(message.mention_everyone and message.system_content.find("@everyone") != -1)
         # print(message.mention_everyone and message.system_content.find("@here") != -1)
@@ -657,7 +657,7 @@ async def retrieve_channel(self):
   dd_writefile(batch+'/csv','user_data',pandas.DataFrame.from_records(ul));
   dd_writefile(batch+'/csv','file_data',pandas.DataFrame.from_records(fl));
   dd_writefile(batch+'/csv','role_data',pandas.DataFrame.from_records(rol));
-  dd_writefile(batch+'/csv','mention_data',pandas.DataFrame.from_records(mel));
+  dd_writefile(batch+'/csv','tag_data',pandas.DataFrame.from_records(mel));
   print('ok')
 
 class App(discord.Client):
