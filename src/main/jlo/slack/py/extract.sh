@@ -14,3 +14,4 @@ zip -r ausinnovation-slack-${archive}-metrics-${current_version}.zip ${archive}/
 zip -r ausinnovation-slack-${archive}-master-metrics-${current_version}.zip master/csv/*_data.csv metrics
 cd -
 ./run.sh scripts/load_pg.py
+./run.sh scripts/load_oracle.py
