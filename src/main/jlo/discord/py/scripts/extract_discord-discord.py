@@ -71,6 +71,13 @@ def dd_writefile(key,filename,pdf,index=False):
   with open(data_home+'/'+key+'/'+filename+'.csv','a',encoding='utf-8',newline='') as f:
     pdf.to_csv(f,index=index,quoting=csv.QUOTE_ALL,mode='a',header=f.tell()==0);
 
+def dd_writejson(filename,key,result):
+  current_time = floor(datetime.now().timestamp()*1000000)
+  f = open(data_home+'/'+batch+'/api/'+filename+'-'+key+'-'+str(current_time)+'.json','a',encoding='utf-8');
+  f.write(str(result));
+  f.close();
+
+
 def datetime_to_isostr(dt):
   return dt.strftime('%Y-%m-%dT%H:%M:%S.000');
   # return datetime.utcfromtimestamp(time.gmtime(float(s)));
@@ -572,98 +579,131 @@ def get_class(channel):
 def is_private(channel):
   return 'private' == get_class(channel);
 
-async def retrieve_channel(self):
-  # print(self.user)
-  # print(self.emojis)
-  # print(self.guilds)
-  # for guild in self.guilds:
-  #   print(guild.id)
-  #   print(guild.name)
-  #   print(guild.roles)
-  # print(self.users)
-  cl = []
-  ml = []
-  rl = []
-  ul = []
-  fl = []
-  rol = []
-  mel = []
-  for channel in self.get_all_channels():
-    cl.append({ 'id': str(channel.id), 'name': channel.name, 'type': channel.type.name, 'class': get_class(channel), 'is_archived': False, 'is_private': is_private(channel)});
-    # print(channel.changed_roles)
-    print(channel.name)
-    # print(channel.guild)
-    # print('['+str(channel.type)+']')
-    if str(channel.type) == 'text':
-      messages = await channel.history().flatten()
-      for message in messages:
-        ml.append({ 'channel': str(channel.id), 'type': 'message', 'subtype': message.type.name, 'ts': str(message.id), 'thread_ts': '', 'time': datetime_to_isostr(message.created_at), 'reply_count': '', 'user': str(message.author.id), 'text': message.system_content });
-        print(message.id)
-        # print(message.mentions)
-        for mention in message.mentions:
-          mel.append({ 'channel': str(channel.id), 'ts': str(message.id), 'tag': str(mention.id), 'nice_tag': mention.display_name, 'type': 'user' })
-        for channel_mention in message.channel_mentions:
-          mel.append({ 'channel': str(channel.id), 'ts': str(message.id), 'tag': str(channel_mention.id), 'nice_tag': str(channel_mention), 'type': 'channel' })
-        if message.mention_everyone and message.system_content.find("@everyone") != -1:
-          mel.append({ 'channel': str(channel.id), 'ts': str(message.id), 'tag': 'everyone', 'nice_tag': 'everyone', 'type': 'user' })
-        if message.mention_everyone and message.system_content.find("@here") != -1:
-          mel.append({ 'channel': str(channel.id), 'ts': str(message.id), 'tag': 'here', 'nice_tag': 'here', 'type': 'user' })
-        # print(message.channel_mentions)
-        # print(message.mention_everyone and message.system_content.find("@everyone") != -1)
-        # print(message.mention_everyone and message.system_content.find("@here") != -1)
-        # print(message.created_at)
-        # print(message.type)
-        # print(message.activity)
-        # print(message.author)
-        # print(message.mentions)
-        # print(message.content)
-        # print(message.system_content)
-        # print(message.clean_content)
-        for reaction in message.reactions:
-          # print(reaction.count)
-          print(emoji.demojize(reaction.emoji,use_aliases=True))
-          tag = emoji.demojize(reaction.emoji,use_aliases=True)
-          # print(reaction.message)
-          users = await reaction.users().flatten()
-          # print(users)
-          for user in users:
-            rl.append({ 'channel': str(channel.id), 'ts': str(message.id), 'thread_ts': '', 'user': str(user.id), 'reaction': tag });
-        for attach in message.attachments:
-          print(attach.id)
-          print(attach.filename)
-          os.makedirs(data_home+'/'+batch+'/files/'+str(attach.id));
-          await attach.save(data_home+'/'+batch+'/files/'+str(attach.id)+'/'+attach.filename)
-          fl.append({ 'id': attach.id, 'channel': channel.id, 'name': attach.filename, 'time': datetime_to_isostr(message.created_at), 'user': message.author.id})
-        # print(message.flags)
-  for member in self.get_all_members():
-    # print(member.id)
-    # print(member.nick)
-    # print(member.status)
-    # print(member.roles)
-    # print(member.display_name)
-    # print(member.name)
-    ul.append({ 'id': str(member.id), 'name': member.name, 'real_name': member.display_name, 'tz': '', 'email': '', 'batch': str(batch) });
-  for guild in self.guilds:
-    for role in guild.roles:
-      # print(role.id)
-      # print(role.name)
-      for member in role.members:
-        # print(member.id)
-        # print(member.name)
-        rol.append({'id': role.id, 'name': role.name, 'user': member.id})
-  dd_writefile(batch+'/csv','channel_data',pandas.DataFrame.from_records(cl));
-  dd_writefile(batch+'/csv','message_data',pandas.DataFrame.from_records(ml));
-  dd_writefile(batch+'/csv','reaction_data',pandas.DataFrame.from_records(rl));
-  dd_writefile(batch+'/csv','user_data',pandas.DataFrame.from_records(ul));
-  dd_writefile(batch+'/csv','file_data',pandas.DataFrame.from_records(fl));
-  dd_writefile(batch+'/csv','role_data',pandas.DataFrame.from_records(rol));
-  dd_writefile(batch+'/csv','tag_data',pandas.DataFrame.from_records(mel));
-  print('ok')
+async def retrieve_userdata(self):
+  try:
+    print('retrieving user_data');
+    a = 0;
+    result = None
+    while a < 3 and result == None:
+      try:
+        #print(self.get_all_members())
+        result = list(self.get_all_members());
+      except Exception as err:
+        print('error in discord call')
+        print(err);
+        a += 1
+        result = None
+        time.sleep(0.1)
+    if result == None:
+      exit(-1);
+    formatted_result = []
+    for entry in result:
+      #print(entry)
+      formatted_result.append({ 'id': str(entry.id), 'name': entry.name, 'real_name': entry.display_name, 'tz': '', 'email': '', 'batch': str(batch) });
+    dd_writejson('user_list','all',formatted_result);
+  except Exception as err:
+    print('Error')
+    print(err)
+
+async def retrieve_channeldata(self):
+  try:
+    print('retrieving channel_data');
+    a = 0;
+    result = None
+    while a < 3 and result == None:
+      try:
+        result = list(self.get_all_channels())
+      except Exception as err:
+        print('error in discord call')
+        print(err);
+        a += 1
+        result = None
+        time.sleep(0.1)
+    if result == None:
+      exit(-1);
+    formatted_result = []
+    for entry in result:
+      formatted_result.append({'id': str(entry.id), 'name': entry.name, 'type': entry.type.name, 'class': get_class(entry),
+                 'is_archived': False, 'is_private': is_private(entry)});
+      if entry.type.name == "text":
+        await retrieve_messagedata(self, entry.id)
+    dd_writejson('conversation_list','all',formatted_result);
+    #parse_channeldata(result);
+  except Exception as err:
+    print('Error')
+    print(err)
+
+async def retrieve_filedata(self):
+  try:
+    print('retrieving file_data');
+    a = 0;
+    result = None
+    while a < 3 and result == None:
+      try:
+        channels = list(self.get_all_channels())
+      except Exception as err:
+        print('error in discord call')
+        print(err);
+        a += 1
+        result = None
+        time.sleep(0.1)
+      result = []
+      for channel in channels:
+        if channel.type.name == "text":
+          messages = await channel.history().flatten()
+          for message in messages:
+            for attach in message.attachments:
+              print(attach.id)
+              print(attach.filename)
+              os.makedirs(data_home + '/' + batch + '/files/' + str(attach.id));
+              await attach.save(data_home + '/' + batch + '/files/' + str(attach.id) + '/' + attach.filename)
+              result.append(
+                {'id': attach.id, 'channel': channel.id, 'name': attach.filename, 'time': datetime_to_isostr(message.created_at),
+                 'user': message.author.id})
+    if result == None:
+      exit(-1);
+    dd_writejson('files_list','all',result);
+    #parse_channeldata(result);
+  except Exception as err:
+    print('Error')
+    print(err)
+
+async def retrieve_messagedata(self, channel_id):
+  try:
+    print('retrieving message_data for channel '+str(channel_id));
+    a = 0;
+    result = None
+    channel = None
+    while a < 3 and result == None:
+      try:
+        channel = self.get_channel(channel_id)
+        result = await channel.history().flatten()
+      except Exception as err:
+        print('error in discord call')
+        print(err);
+        a += 1
+        result = None
+        time.sleep(0.1)
+    if result == None:
+      exit(-1);
+    formatted_result = []
+    for entry in result:
+      formatted_result.append({'channel': str(channel.id), 'type': 'message', 'subtype': entry.type.name, 'ts': str(entry.id),
+                 'thread_ts': '', 'time': datetime_to_isostr(entry.created_at), 'reply_count': '',
+                 'user': str(entry.author.id), 'text': entry.system_content});
+    dd_writejson('message_list',str(channel_id),formatted_result);
+    #parse_channeldata(result);
+  except Exception as err:
+    print('Error')
+    print(err)
+
 
 class App(discord.Client):
 
   async def on_ready(self):
-    await retrieve_channel(self)
+    await retrieve_channeldata(self)
+    await retrieve_userdata(self)
+    await retrieve_filedata(self)
     await self.logout()
 
 def exec_stages():
