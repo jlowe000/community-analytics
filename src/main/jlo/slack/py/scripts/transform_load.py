@@ -271,7 +271,7 @@ def dd_polldata(id,result):
     poll_id = None;
     poll_text = None;
     for message in messages:
-      if 'subtype' in message and message['subtype'] == 'bot_message' and 'blocks' in message and message['blocks'] != None:
+      if 'blocks' in message and message['blocks'] != None:
         for block in message['blocks']:
           if 'block_id' in block and block['block_id'][0:5] == 'poll-':
             print(block['block_id']);
