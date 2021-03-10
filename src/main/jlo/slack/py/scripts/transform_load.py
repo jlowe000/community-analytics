@@ -50,6 +50,7 @@ def sortfile_key(file):
   return int(file[-21:-5]);
 
 def dd_setdatahome(home):
+  global data_home
   data_home = home;
 
 def dd_backupfile(filename):
@@ -789,25 +790,25 @@ def create_edgedata():
     c4_pdf = c1_pdf.merge(c2_pdf,how='left',left_on='thread_ts',right_on='ts');
     # print(c4_pdf.shape);
     c4_pdf = c4_pdf[c4_pdf['user_id_x'] != c4_pdf['user_id_y']];
-    c4_pdf = c4_pdf[['channel_x','user_id_x','user_id_y']];
+    c4_pdf = c4_pdf[['channel_x','user_id_x','user_id_y','time_x']];
     c4_pdf['user_id_y'] = c4_pdf['user_id_y'].mask(pandas.isnull, c4_pdf['channel_x']);
     c4_pdf['relate'] = 'interacts';
-    c4_pdf = c4_pdf.rename(columns={'channel_x':'channel','user_id_x':'source','user_id_y':'target','relate':'relate'});
+    c4_pdf = c4_pdf.rename(columns={'channel_x':'channel','user_id_x':'source','user_id_y':'target','time_x':'time','relate':'relate'});
     # print(c4_pdf.shape);
     c3_pdf = c1_pdf.copy();
     c5_pdf = c3_pdf.merge(reaction_pdf,how='left',left_on='ts',right_on='ts');
     c5_pdf = c5_pdf[c5_pdf['user_id_y'].notnull()];
-    c5_pdf = c5_pdf[['channel_x','user_id_x','user_id_y']];
+    c5_pdf = c5_pdf[['channel_x','user_id_x','user_id_y','time']];
     c5_pdf['relate'] = 'reacts';
-    c5_pdf = c5_pdf.rename(columns={'channel_x':'channel','user_id_x':'source','user_id_y':'target','relate':'relate'});
+    c5_pdf = c5_pdf.rename(columns={'channel_x':'channel','user_id_x':'source','user_id_y':'target','time':'time','relate':'relate'});
     # print(c5_pdf.shape);
     c6_pdf = c1_pdf.copy();
     c6_pdf = c6_pdf.merge(tag_pdf,how='left',on='ts');
     c6_pdf = c6_pdf[c6_pdf['user_id'].notnull()];
     c6_pdf = c6_pdf[c6_pdf['type_y'] == 'user'];
-    c6_pdf = c6_pdf[['channel_x','user_id','tag']];
+    c6_pdf = c6_pdf[['channel_x','user_id','tag','time']];
     c6_pdf['relate'] = 'refers';
-    c6_pdf = c6_pdf.rename(columns={'channel_x':'channel','user_id':'source','tag':'target','relate':'relate'});
+    c6_pdf = c6_pdf.rename(columns={'channel_x':'channel','user_id':'source','tag':'target','time':'time','relate':'relate'});
     # print(c6_pdf.shape);
     # print(c6_pdf);
     ddpdf = c4_pdf.append(c5_pdf,ignore_index=True);
