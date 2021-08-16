@@ -57,6 +57,10 @@
 * Created new script to load data into postgres database.
 * Existing scripts do not include bootstrapping the database.
 
+**v1.2**
+* Removed the Javascript Slack version
+* Updated the slack package to the latest
+
 ## TODO
 
 **Future things to consider**
